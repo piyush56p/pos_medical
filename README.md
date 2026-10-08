@@ -80,6 +80,16 @@ The root `render.yaml` defines a Render web service, PostgreSQL database, and pe
 
 The test database is configured on Render's free database plan, which is temporary. The web service and persistent upload disk use a paid plan. Do not use this test deployment for real pharmacy or customer records.
 
+## Deploy on a DigitalOcean VPS
+
+- Point a domain's DNS A record to the VPS IPv4 address and allow inbound ports 80 and 443 in the DigitalOcean firewall.
+- Install Docker Engine and the Docker Compose plugin on the VPS.
+- Copy `.env.example` to `.env`, then set the domain, unique database and session secrets, and owner credentials. Keep `.env` private.
+- Run `docker compose config` to validate the configuration, then `docker compose up -d --build` to build and start the app.
+- Run `docker compose logs -f web` to inspect startup. Caddy obtains HTTPS certificates after the domain resolves to the VPS.
+
+PostgreSQL and uploaded images use Docker volumes so they survive container rebuilds. Configure and test backups before storing business data.
+
 ## For Developers
 - Clone this project.
 - Open terminal and navigate into the cloned folder.

@@ -4,8 +4,8 @@ const crypto = require("crypto");
 const { Pool } = require("pg");
 
 const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-    ssl: process.env.NODE_ENV === "production"
+    ...(process.env.DATABASE_URL ? { connectionString: process.env.DATABASE_URL } : {}),
+    ssl: process.env.DATABASE_SSL === "true"
         ? { rejectUnauthorized: false }
         : undefined,
 });
@@ -184,8 +184,8 @@ class PostgresStore {
 }
 
 async function initializeDatabase() {
-    if (!process.env.DATABASE_URL) {
-        throw new Error("DATABASE_URL must be set to use the hosted database.");
+    if (!process.env.DATABASE_URL && !process.env.PGHOST) {
+        throw new Error("Set DATABASE_URL or PGHOST to configure the PostgreSQL connection.");
     }
     const schema = fs.readFileSync(path.join(__dirname, "postgres-schema.sql"), "utf8");
     await pool.query(schema);
