@@ -3,7 +3,7 @@ services:
     name: pharmaspot-web
     runtime: node
     plan: 0.5c-512mb
-    region: oregon
+    region: singapore
     buildCommand: npm ci --include=dev && npm run build:web
     startCommand: npm start
     healthCheckPath: /healthz
@@ -33,4 +33,4 @@ databases:
     databaseName: pharmaspot
     user: pharmaspot
     plan: free
-    region: oregon
+    region: singapore
