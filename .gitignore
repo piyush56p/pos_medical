@@ -1,3 +1,11 @@
+node_modules/
+.env
+.env.*
+!.env.example
+out/
+release-builds/
+assets/dist/js/web-entry.js
+assets/dist/js/web-vendor-entry.js
 node_modules*
 notes.txt
 package.*.json

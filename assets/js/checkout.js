@@ -1,4 +1,4 @@
-const utils = require("./utils");
+const utils = require("./web-utils");
 
 /** CheckOut Functions **/
 $(document).ready(function () {

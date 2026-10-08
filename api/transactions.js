@@ -1,27 +1,14 @@
 let app = require("express")();
 let server = require("http").Server(app);
 let bodyParser = require("body-parser");
-let Datastore = require("@seald-io/nedb");
+const { PostgresStore } = require("./postgres-store");
 let Inventory = require("./inventory");
-const path = require("path");
-const appName = process.env.APPNAME;
-const appData = process.env.APPDATA;
-const dbPath = path.join(
-  appData,
-  appName,
-  "server",
-  "databases",
-  "transactions.db",
-);
 
 app.use(bodyParser.json());
 
 module.exports = app;
 
-let transactionsDB = new Datastore({
-  filename: dbPath,
-  autoload: true,
-});
+let transactionsDB = new PostgresStore({ collection: "transactions" });
 
 transactionsDB.ensureIndex({ fieldName: "_id", unique: true });
 

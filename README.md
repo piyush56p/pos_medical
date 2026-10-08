@@ -1,6 +1,6 @@
 
 # PharmaSpot Point of Sale
-![GitHub package.json version](https://img.shields.io/github/package-json/v/drkNsubuga/PharmaSpot) ![GitHub all releases](https://img.shields.io/github/downloads/drkNsubuga/PharmaSpot/total) [![Build](https://github.com/drkNsubuga/PharmaSpot/actions/workflows/build.yml/badge.svg)](https://github.com/drkNsubuga/PharmaSpot/actions/workflows/build.yml) [![Release](https://github.com/drkNsubuga/PharmaSpot/actions/workflows/release.yml/badge.svg)](https://github.com/drkNsubuga/PharmaSpot/actions/workflows/release.yml) [![GitHub issues](https://img.shields.io/github/issues/drkNsubuga/PharmaSpot)](https://github.com/drkNsubuga/PharmaSpot) [![License](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/drkNsubuga/PharmaSpot/blob/main/LICENSE)
+![GitHub package.json version](https://img.shields.io/github/package-json/v/drkNsubuga/PharmaSpot) [![Build](https://github.com/drkNsubuga/PharmaSpot/actions/workflows/build.yml/badge.svg)](https://github.com/drkNsubuga/PharmaSpot/actions/workflows/build.yml) [![GitHub issues](https://img.shields.io/github/issues/drkNsubuga/PharmaSpot)](https://github.com/drkNsubuga/PharmaSpot) [![License](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/drkNsubuga/PharmaSpot/blob/main/LICENSE)
 
 ![PharmaSpot Logo](assets/images/logo.svg)
 
@@ -58,21 +58,35 @@ https://github.com/user-attachments/assets/9b066b96-f06c-4b37-8211-58fd1fea5f01
 |<img src="screenshots/alerts.png" alt="PharmaSpot Demo - Status Alerts" width="80%"/>| <ul><li>Auto Updates</li><li>Back up</li><li>Restore</li><li>Export to excel</li></ul>
 
 
-## Getting Started
-- Download [PharmaSpot](https://github.com/drkNsubuga/PharmaSpot/releases/latest)
-- Unzip the package to a location of your choice.
-- Click the ``PharmaSpot`` executable in the folder
-- Login for default user:
+## Web App
 
-	- ``username:`` admin
-	- ``password:`` admin
+The web version runs in a browser and stores application records in PostgreSQL. The first deployment starts with an empty database; it does not import data from existing desktop installations.
+
+## Run Locally
+
+- Install Node.js 20 and PostgreSQL.
+- Create a PostgreSQL database and set `DATABASE_URL` to its connection string.
+- Set `SESSION_SECRET` to a random value at least 32 characters long.
+- Set `OWNER_USERNAME` and `OWNER_PASSWORD`; the password must be at least 12 characters.
+- Set `UPLOADS_DIR` to a writable directory, for example `public/uploads`.
+- Run `npm install`, `npm run build:web`, then `npm start`.
+- Open `http://localhost:3210`.
+
+Do not commit database credentials, owner credentials, or session secrets.
+
+## Test Deployment
+
+The root `render.yaml` defines a Render web service, PostgreSQL database, and persistent upload disk. Push the project to GitHub, create a Render Blueprint from the repository, enter the requested owner username and password, then deploy the web service. The Blueprint leaves automatic deployment disabled so test deployments are started manually.
+
+The test database is configured on Render's free database plan, which is temporary. The web service and persistent upload disk use a paid plan. Do not use this test deployment for real pharmacy or customer records.
 
 ## For Developers
 - Clone this project.
 - Open terminal and navigate into the cloned folder.
-- Run ```npm install``` to install dependencies.
-- Run ```npm run start```.
-- Run ```gulp``` to bundle css and js assets
+- Set the required local PostgreSQL and owner environment variables described above.
+- Run `npm install` to install dependencies.
+- Run `npm run build:web` to bundle the browser client.
+- Run `npm start` to start the web app.
 - Run ```npm run test``` to run tests
   
 ## Credits

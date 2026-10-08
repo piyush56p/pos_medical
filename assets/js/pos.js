@@ -1,21 +1,14 @@
 const jsPDF = require("jspdf");
 const html2canvas = require("html2canvas");
 const JsBarcode = require("jsbarcode");
-const macaddress = require("macaddress");
 const notiflix = require("notiflix");
 const validator = require("validator");
 const DOMPurify = require("dompurify");
 const _ = require("lodash");
-let fs = require("fs");
-let path = require("path");
 let moment = require("moment");
-let { ipcRenderer } = require("electron");
 let dotInterval = setInterval(function () {
   $(".dot").text(".");
 }, 3000);
-let Store = require("electron-store");
-const remote = require("@electron/remote");
-const app = remote.app;
 let cart = [];
 let index = 0;
 let allUsers = [];
@@ -40,13 +33,9 @@ let order_index = 0;
 let user_index = 0;
 let product_index = 0;
 let transaction_index;
-const appName = process.env.APPNAME;
-const appData = process.env.APPDATA;
-let host = "localhost";
-let port = process.env.PORT || "3210";
-let img_path = path.join(appData, appName, "uploads", "/");
-let api = "http://" + host + ":" + port + "/api/";
-const bcrypt = require("bcrypt");
+const appName = "PharmaSpot";
+let img_path = "/uploads/";
+let api = "/api/";
 let categories = [];
 let holdOrderList = [];
 let customerOrderList = [];
@@ -57,7 +46,18 @@ let auth_error = "Incorrect username or password";
 let auth_empty = "Please enter a username and password";
 let holdOrderlocation = $("#renderHoldOrders");
 let customerOrderLocation = $("#renderCustomerOrders");
-let storage = new Store();
+let storage = {
+  get(key) {
+    const value = localStorage.getItem(key);
+    return value === null ? undefined : JSON.parse(value);
+  },
+  set(key, value) {
+    localStorage.setItem(key, JSON.stringify(value));
+  },
+  delete(key) {
+    localStorage.removeItem(key);
+  },
+};
 let settings;
 let platform;
 let user = {};
@@ -68,7 +68,7 @@ let end_date = moment(end).toDate();
 let by_till = 0;
 let by_user = 0;
 let by_status = 1;
-const default_item_img = path.join("assets","images","default.jpg");
+const default_item_img = "/assets/images/default.jpg";
 const permissions = [
   "perm_products",
   "perm_categories",
@@ -89,12 +89,7 @@ const {
   isExpired,
   daysToExpire,
   getStockStatus,
-  checkFileExists,
-  setContentSecurityPolicy,
-} = require("./utils");
-
-//set the content security policy of the app
-setContentSecurityPolicy();
+} = require("./web-utils");
 
 $(function () {
   function cb(start, end) {
@@ -127,7 +122,6 @@ $(function () {
           moment().subtract(29, "days").startOf("day"),
           moment().endOf("day"),
         ],
-        "This Month": [moment().startOf("month"), moment().endOf("month")],
         "This Month": [moment().startOf("month"), moment()],
         "Last Month": [
           moment().subtract(1, "month").startOf("month"),
@@ -187,25 +181,23 @@ user = storage.get("user");
 
 $("#main_app").hide();
 if (auth == undefined) {
-  $.get(api + "users/check/", function (data) {});
-
-  authenticate();
+  $.get(api + "session", function (sessionUser) {
+    storage.set("auth", { auth: true });
+    storage.set("user", sessionUser);
+    window.location.reload();
+  }).fail(authenticate);
 } else {
   $("#login").hide();
   $("#main_app").show();
-  platform = storage.get("settings");
-
-  if (platform != undefined) {
-    if (platform.app == "Network Point of Sale Terminal") {
-      const remotePort = platform.port || port;
-      api = "http://" + platform.ip + ":" + remotePort + "/api/";
-      perms = true;
-    }
-  }
+  platform = { app: "Web POS" };
 
   $.get(api + "users/user/" + user._id, function (data) {
     user = data;
     $("#loggedin-user").text(user.fullname);
+  }).fail(function () {
+    storage.delete("auth");
+    storage.delete("user");
+    authenticate();
   });
 
   $.get(api + "settings/get", function (data) {
@@ -319,8 +311,7 @@ if (auth == undefined) {
           }
           else
           {
-            item_img = path.join(img_path, item.img);
-            item_img = checkFileExists(item_img) ? item_img : default_item_img;
+            item_img = img_path + encodeURIComponent(item.img);
           }
           
 
@@ -804,12 +795,12 @@ if (auth == undefined) {
         method = "POST";
       }
 
-      logo = path.join(img_path, validator.unescape(settings.img));
+      logo = img_path + encodeURIComponent(validator.unescape(settings.img));
 
       receipt = `<div style="font-size: 10px">                            
         <p style="text-align: center;">
         ${
-          checkFileExists(logo)
+          settings.img
             ? `<img style='max-width: 50px' src='${logo}' /><br>`
             : ``
         }
@@ -1718,10 +1709,7 @@ if (auth == undefined) {
         }
         else
         {
-          product_img = img_path + product.img;
-          product_img = checkFileExists(product_img)
-          ? product_img
-          : default_item_img;
+          product_img = img_path + encodeURIComponent(product.img);
         }
         
         //render product list
@@ -1822,7 +1810,7 @@ if (auth == undefined) {
           $.get(api + "users/logout/" + user._id, function (data) {
             storage.delete("auth");
             storage.delete("user");
-            ipcRenderer.send("app-reload", "");
+            window.location.reload();
           });
         },
       );
@@ -1831,17 +1819,10 @@ if (auth == undefined) {
     $("#settings_form").on("submit", function (e) {
       e.preventDefault();
       let formData = $(this).serializeObject();
-      let mac_address;
-
-      api = "http://" + host + ":" + port + "/api/";
-
-      macaddress.one(function (err, mac) {
-        mac_address = mac;
-      });
       const appChoice = $("#app").find("option:selected").text();
     
       formData["app"] = appChoice;
-      formData["mac"] = mac_address;
+      formData["mac"] = "web";
       formData["till"] = 1;
 
       // Update application field in settings form
@@ -1871,7 +1852,7 @@ if (auth == undefined) {
         $(this).ajaxSubmit({
           contentType: "application/json",
           success: function () {
-            ipcRenderer.send("app-reload", "");
+            window.location.reload();
           },
           error: function (jqXHR) {
             console.error(jqXHR.responseJSON.message);
@@ -1898,9 +1879,9 @@ if (auth == undefined) {
       } else {
         if (isNumeric(formData.till)) {
           formData["app"] = $("#app").find("option:selected").text();
-          formData["port"] = port;
+          formData["port"] = "web";
           storage.set("settings", formData);
-          ipcRenderer.send("app-reload", "");
+          window.location.reload();
         } else {
           notiflix.Report.warning(
             "Oops!",
@@ -1913,44 +1894,7 @@ if (auth == undefined) {
 
     $("#saveUser").on("submit", function (e) {
       e.preventDefault();
-      let formData = $(this).serializeObject();
-
-      if (formData.password != formData.pass) {
-        notiflix.Report.warning("Oops!", "Passwords do not match!", "Ok");
-      }
-
-      if (
-        bcrypt.compare(formData.password, user.password) ||
-        bcrypt.compare(formData.password, allUsers[user_index].password)
-      ) {
-        $.ajax({
-          url: api + "users/post",
-          type: "POST",
-          data: JSON.stringify(formData),
-          contentType: "application/json; charset=utf-8",
-          cache: false,
-          processData: false,
-          success: function (data) {
-            if (ownUserEdit) {
-              ipcRenderer.send("app-reload", "");
-            } else {
-              $("#userModal").modal("hide");
-
-              loadUserList();
-
-              $("#Users").modal("show");
-              notiflix.Report.success("Great!", "User details saved!", "Ok");
-            }
-          },
-          error: function (jqXHR,textStatus, errorThrown) {
-            notiflix.Report.failure(
-              jqXHR.responseJSON.error,
-              jqXHR.responseJSON.message,
-              "Ok",
-            );
-          },
-        });
-      }
+      notiflix.Report.info("Single-owner mode", "Staff accounts are disabled.", "Ok");
     });
 
     $("#app").on("change", function () {
@@ -1960,9 +1904,7 @@ if (auth == undefined) {
       ) {
         $("#net_settings_form").show(500);
         $("#settings_form").hide(500);
-        macaddress.one(function (err, mac) {
-          $("#mac").val(mac);
-        });
+        $("#mac").val("web");
       } else {
         $("#net_settings_form").hide(500);
         $("#settings_form").show(500);
@@ -2005,13 +1947,7 @@ if (auth == undefined) {
 
         $("#ip").val(platform.ip);
         $("#till").val(platform.till);
-        if (platform.port) {
-          port = platform.port;
-        }
-
-        macaddress.one(function (err, mac) {
-          $("#mac").val(mac);
-        });
+        $("#mac").val("web");
 
         $("#app option")
           .filter(function () {
@@ -2354,12 +2290,12 @@ $.fn.viewTransaction = function (index) {
             </tr>`;
   }
 
-    logo = path.join(img_path, validator.unescape(settings.img));
+    logo = img_path + encodeURIComponent(validator.unescape(settings.img));
       
       receipt = `<div style="font-size: 10px">                            
         <p style="text-align: center;">
         ${
-          checkFileExists(logo)
+          settings.img
             ? `<img style='max-width: 50px' src='${logo}' /><br>`
             : ``
         }
@@ -2500,7 +2436,7 @@ $("body").on("submit", "#account", function (e) {
         if (data.auth === true) {
           storage.set("auth", { auth: true });
           storage.set("user", data);
-          ipcRenderer.send("app-reload", "");
+          window.location.reload();
           $("#login").hide();
         } else {
           notiflix.Report.warning("Oops!", auth_error, "Ok");
@@ -2528,11 +2464,7 @@ $("#quit").on("click", function () {
     diagOptions.okButtonText,
     diagOptions.cancelButtonText,
     () => {
-      ipcRenderer.send("app-quit", "");
+              window.location.href = "/";
     },
   );
-});
-
-ipcRenderer.on("click-element", (event, elementId) => {
-  document.getElementById(elementId).click();
 });

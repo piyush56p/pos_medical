@@ -8,30 +8,19 @@
   "credits": "electronjs.org",
   "license": "MIT",
   "private": true,
-  "main": "start.js",
-  "build": {
-    "appId": "com.patternsdigital.pharmaspot",
-    "directories": {
-      "buildResources": "assets"
-    }
-  },
   "dependencies": {
-    "@electron/asar": "^3.2.7",
-    "@electron/remote": "^2.0.9",
-    "@seald-io/nedb": "^4.0.3",
     "archiver": "^7.0.1",
     "async": "^3.2.4",
     "bcrypt": "npm:bcryptjs@^2.4.3",
     "body-parser": "^2.3.0",
+    "connect-pg-simple": "^10.0.0",
     "dompurify": "^3.4.16",
-    "electron-context-menu": "^3.6.1",
-    "electron-squirrel-startup": "^1.0.0",
-    "electron-store": "^8.1.0",
-    "electron-updater": "^6.8.9",
     "express": "^5.2.1",
     "express-fileupload": "^1.4.0",
     "express-rate": "^0.0.1",
     "express-rate-limit": "^6.7.0",
+    "express-session": "^1.19.0",
+    "helmet": "^8.3.0",
     "html2canvas": "^1.4.1",
     "http": "0.0.0",
     "https": "^1.0.0",
@@ -40,10 +29,10 @@
     "jsbarcode": "^3.11.5",
     "jspdf": "^4.2.1",
     "lodash": "^4.17.24",
-    "macaddress": "^0.5.3",
     "moment": "^2.31.0",
     "multer": "^2.4.0",
     "notiflix": "^3.2.5",
+    "pg": "^8.23.1",
     "print-js": "^1.6.0",
     "sanitize": "^2.1.2",
     "sanitize-filename": "^1.6.3",
@@ -87,17 +76,11 @@
     "follow-redirects": "^1.15.11",
     "lodash": "^4.17.24",
     "multer": "^2.4.0",
-    "picomatch": "^2.3.2",
-    "electron": "^43.7.5"
+    "picomatch": "^2.3.2"
   },
   "scripts": {
-    "electron": "cross-env NODE_ENV=dev nodemon --exec \"\"electron .\"\"",
-    "electron-build": "electron-builder",
-    "package-win": "electron-packager . PharmaSpot --overwrite --asar=false --platform=win32 --arch=x64 --icon=assets/images/icon.ico --prune=true --out=release-builds --version-string.ProductName=\"PharmaSpot\"",
-    "start": "electron-forge start",
-    "package": "electron-forge package",
-    "make": "electron-forge make",
-    "publish": "electron-forge publish",
+    "start": "node server.js",
+    "build:web": "esbuild web-vendor-entry.js web-entry.js --bundle --platform=browser --outdir=assets/dist/js",
     "test": "jest"
   },
   "browserslist": {
@@ -113,21 +96,8 @@
     ]
   },
   "devDependencies": {
-    "@electron-forge/cli": "^8.0.1",
-    "@electron-forge/maker-deb": "^8.0.1",
-    "@electron-forge/maker-dmg": "^8.0.1",
-    "@electron-forge/maker-rpm": "^8.0.1",
-    "@electron-forge/maker-squirrel": "^8.0.1",
-    "@electron-forge/maker-wix": "^7.11.2",
-    "@electron-forge/maker-zip": "^8.0.1",
-    "@electron-forge/publisher-github": "^8.0.1",
     "browser-sync": "^3.0.3",
-    "cross-env": "^7.0.3",
-    "electron": "^43.7.5",
-    "electron-is-dev": "^2.0.0",
-    "electron-log": "^4.4.8",
-    "electron-reloader": "^1.2.3",
-    "electron-updater-yaml": "^1.1.2",
+    "esbuild": "^0.28.2",
     "gulp": "^5.0.0",
     "gulp-clean-css": "^4.3.0",
     "gulp-concat": "^2.6.1",
@@ -139,8 +109,6 @@
     "jest": "^29.7.0",
     "merge-stream": "^2.0.0",
     "node-gyp": "^13.0.2",
-    "nodemon": "^3.0.1",
-    "path": "^0.12.7",
     "ts-node": "^10.9.2"
   }
 }
