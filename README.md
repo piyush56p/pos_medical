@@ -64,7 +64,7 @@ The web version runs in a browser and stores application records in PostgreSQL. 
 
 ## Run Locally
 
-- Install Node.js 20 and PostgreSQL.
+- Install Node.js 24 and PostgreSQL.
 - Create a PostgreSQL database and set `DATABASE_URL` to its connection string.
 - Set `SESSION_SECRET` to a random value at least 32 characters long.
 - Set `OWNER_USERNAME` and `OWNER_PASSWORD`; the password must be at least 12 characters.
