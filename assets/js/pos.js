@@ -300,11 +300,20 @@ if (auth == undefined) {
         $("#parent").text("");
 
         data.forEach((item) => {
-          if (!categories.includes(item.category)) {
+          if (item.category && !categories.includes(item.category)) {
             categories.push(item.category);
           }
-          let item_isExpired = isExpired(item.expirationDate);
+          let item_isExpired = !(item.batches && item.batches.length) && isExpired(item.expirationDate);
           let item_stockStatus = getStockStatus(item.quantity,item.minStock);
+          const categoryClass = item.category && /^[a-zA-Z0-9_-]+$/.test(String(item.category)) ? item.category : "";
+          const batchOptions = (item.batches || []).map((batch) =>
+            `<option value="${_.escape(batch.id)}">${_.escape(batch.batch_number)} · exp ${_.escape(String(batch.expiry_date || "not set").slice(0, 10))} · ${Number(batch.quantity)} left · ₹${Number(batch.sale_rate).toFixed(2)}</option>`,
+          ).join("");
+          const batchPicker = (item.batches || []).length > 1
+            ? `<select class="form-control product-batch-select" id="batch-${item._id}" aria-label="Choose batch for ${_.escape(item.name)}" onclick="event.stopPropagation()">${batchOptions}</select>`
+            : "";
+          const displayName = _.escape(item.name || "");
+          const displaySku = _.escape(item.barcodeValue || item.supplierCode || item.barcode || item._id);
           if(item.img==="")
           {
             item_img = default_item_img;
@@ -315,19 +324,18 @@ if (auth == undefined) {
           }
           
 
-          let item_info = `<div class="col-lg-2 box ${item.category}"
+          let item_info = `<div class="col-lg-2 box ${categoryClass}"
                                 onclick="$(this).addToCart(${item._id}, ${
                                   item.quantity
                                 }, ${item.stock})">
-                            <div class="widget-panel widget-style-2 " title="${item.name}">                    
+                            <div class="widget-panel widget-style-2 " title="${displayName}">
                             <div id="image"><img src="${item_img}" id="product_img" alt=""></div>                    
                                         <div class="text-muted m-t-5 text-center">
                                         <div class="name" id="product_name"><span class="${
                                           item_isExpired ? "text-danger" : ""
-                                        }">${item.name}</span></div> 
-                                        <span class="sku">${
-                                          item.barcode || item._id
-                                        }</span>
+                                        }">${displayName}</span></div>
+                                        ${batchPicker}
+                                        <span class="sku">${displaySku}</span>
                                         <span class="${item_stockStatus<1?'text-danger':''}"><span class="stock">STOCK </span><span class="count">${
                                           item.stock == 1
                                             ? item.quantity
@@ -379,7 +387,9 @@ if (auth == undefined) {
 
     $.fn.addToCart = function (id, count, stock) {
       $.get(api + "inventory/product/" + id, function (product) {
-        if (isExpired(product.expirationDate)) {
+        if (!product) {
+          notiflix.Report.warning("Not Found", "This product is no longer available.", "Ok");
+        } else if (!(product.batches && product.batches.length) && isExpired(product.expirationDate)) {
           notiflix.Report.failure(
             "Expired",
             `${product.name} is expired! Please restock.`,
@@ -422,7 +432,11 @@ if (auth == undefined) {
         processData: false,
         success: function (product) {
           $(".search-barcode-btn").html(searchBarCodeIcon);
-          const expired = isExpired(product.expirationDate);
+          if (!product) {
+            notiflix.Report.warning("Not Found!", "This code or medicine name was not found.", "Ok");
+            return;
+          }
+          const expired = !(product.batches && product.batches.length) && isExpired(product.expirationDate);
           if (product._id != undefined && product.quantity >= 1 && !expired) {
             $(this).addProductToCart(product);
             $("#searchBarCode").get(0).reset();
@@ -490,12 +504,17 @@ if (auth == undefined) {
     });
 
     $.fn.addProductToCart = function (data) {
+      const selectedBatchId = $(`#batch-${data._id}`).val();
+      const selectedBatch = (data.batches || []).find((batch) => batch.id === selectedBatchId)
+        || (data.batches || [])[0];
       item = {
         id: data._id,
         product_name: data.name,
-        sku: data.sku,
-        price: data.price,
+        sku: data.barcodeValue || data.supplierCode || data.barcode || data._id,
+        price: selectedBatch ? Number(selectedBatch.sale_rate) : Number(data.price),
         quantity: 1,
+        batch_id: selectedBatch ? selectedBatch.id : null,
+        batch_number: selectedBatch ? selectedBatch.batch_number : null,
       };
 
       if ($(this).isExist(item)) {
@@ -509,7 +528,7 @@ if (auth == undefined) {
     $.fn.isExist = function (data) {
       let toReturn = false;
       $.each(cart, function (index, value) {
-        if (value.id == data.id) {
+        if (value.id == data.id && String(value.batch_id || "") === String(data.batch_id || "")) {
           $(this).setIndex(index);
           toReturn = true;
         }
@@ -559,7 +578,7 @@ if (auth == undefined) {
         $("#cartTable .card-body").append(
           $("<div>", { class: "row m-t-10" }).append(
             $("<div>", { class: "col-md-1", text: index + 1 }),
-            $("<div>", { class: "col-md-3", text: data.product_name }),
+            $("<div>", { class: "col-md-3", text: data.product_name + (data.batch_number ? ` · ${data.batch_number}` : "") }),
             $("<div>", { class: "col-md-3" }).append(
               $("<div>", { class: "input-group" }).append(
                 $("<span>", { class: "input-group-btn" }).append(
@@ -613,7 +632,9 @@ if (auth == undefined) {
       });
 
       if (product[0].stock == 1) {
-        if (item.quantity < product[0].quantity) {
+        const selectedBatch = (product[0].batches || []).find((batch) => batch.id === item.batch_id);
+        const available = selectedBatch ? Number(selectedBatch.quantity) : Number(product[0].quantity);
+        if (item.quantity < available) {
           item.quantity = parseInt(item.quantity) + 1;
           $(this).renderTable(cart);
         } else {
@@ -681,6 +702,14 @@ if (auth == undefined) {
 
     $("#payButton").on("click", function () {
       if (cart.length != 0) {
+        $("#paymentMethods .list-group-item").removeClass("active");
+        $("#cash").addClass("active");
+        $("#singlePaymentEntry").show();
+        $("#splitPaymentFields").hide();
+        $("#splitCashAmount,#splitUpiAmount,#splitCardAmount").val("0");
+        $("#splitCardReference").val("");
+        $("#payment,#paymentText").val("");
+        $("#change").text("0");
         if (settings && settings.quick_billing) {
           const payableAmount = $("#payablePrice").val().replace(/,/g, "");
           $("#payment").val(payableAmount);
@@ -712,7 +741,7 @@ if (auth == undefined) {
       let payment = 0;
       paymentType = $('.list-group-item.active').data('payment-type');
       cart.forEach((item) => {
-    items += `<tr><td>${DOMPurify.sanitize(item.product_name)}</td><td>${
+    items += `<tr><td>${DOMPurify.sanitize(item.product_name)}${item.batch_number ? `<br><small>Batch ${DOMPurify.sanitize(item.batch_number)}</small>` : ""}</td><td>${
       DOMPurify.sanitize(item.quantity)
     } </td><td class="text-right"> ${DOMPurify.sanitize(validator.unescape(settings.symbol))} ${moneyFormat(
       DOMPurify.sanitize(Math.abs(item.price).toFixed(2)),
@@ -729,6 +758,7 @@ if (auth == undefined) {
         $("#payment").val() == "" ? "" : parseFloat(paymentAmount).toFixed(2);
       let change =
         $("#change").text() == "" ? "" : parseFloat(changeAmount).toFixed(2);
+      let splitPayments = [];
       let refNumber = $("#refNumber").val();
       let orderNumber = holdOrder;
       let type = "";
@@ -737,9 +767,37 @@ if (auth == undefined) {
         case 1:
           type = "Cash";
           break;
+        case 2:
+          type = "UPI";
+          break;
         case 3:
           type = "Card";
           break;
+        case 4:
+          type = "Split";
+          break;
+      }
+
+      if (status === 0) {
+        paid = "";
+        change = "";
+        type = "";
+      } else if (paymentType === 4) {
+        splitPayments = [
+          { method: "cash", amount: Number($("#splitCashAmount").val()) || 0 },
+          { method: "upi", amount: Number($("#splitUpiAmount").val()) || 0 },
+          { method: "card", amount: Number($("#splitCardAmount").val()) || 0, reference: $("#splitCardReference").val() || null },
+        ].filter((entry) => entry.amount > 0);
+        const splitTotal = Math.round(splitPayments.reduce((sum, entry) => sum + entry.amount, 0) * 100) / 100;
+        const billTotal = Number(orderTotal);
+        if (!splitPayments.length || splitTotal > billTotal) {
+          notiflix.Report.warning("Check split payments", "Enter at least one positive amount; split amounts cannot exceed the bill total.", "Ok");
+          return;
+        }
+        paid = splitTotal.toFixed(2);
+        change = "0.00";
+        $("#payment").val(paid);
+        type = `Split (${splitPayments.map((entry) => `${entry.method.toUpperCase()} ${moneyFormat(entry.amount.toFixed(2))}`).join(" + ")})`;
       }
 
       if (paid != "") {
@@ -899,6 +957,7 @@ if (auth == undefined) {
         items: cart,
         date: currentTime,
         payment_type: type,
+        payments: status === 1 && paymentType === 4 ? splitPayments : undefined,
         payment_info: $("#paymentInfo").val(),
         total: orderTotal,
         paid: paid,
@@ -1098,6 +1157,8 @@ if (auth == undefined) {
             sku: product.sku,
             price: product.price,
             quantity: product.quantity,
+            batch_id: product.batch_id || null,
+            batch_number: product.batch_number || null,
           };
           cart.push(item);
         });
@@ -1114,6 +1175,8 @@ if (auth == undefined) {
             sku: product.sku,
             price: product.price,
             quantity: product.quantity,
+            batch_id: product.batch_id || null,
+            batch_number: product.batch_number || null,
           };
           cart.push(item);
         });
@@ -1323,6 +1386,68 @@ if (auth == undefined) {
       $("#pointofsale").show();
       $("#transactions_view").show();
       $(this).hide();
+    });
+
+    $.fn.settleCredit = async function (transactionIndex) {
+      const transaction = allTransactions[transactionIndex];
+      if (!transaction || transaction.billStatus !== "credit") return;
+      const collected = Number(transaction.collected ?? transaction.paid) - (Number(transaction.change) || 0);
+      const balance = Number(transaction.balance ?? (Number(transaction.total) - Math.max(0, collected))) || 0;
+      $("#creditPaymentTransactionId").val(String(transaction._id));
+      $("#creditPaymentBill").text(String(transaction.order || transaction._id));
+      $("#creditPaymentCustomer").text(transaction.customer && transaction.customer.name ? transaction.customer.name : "Walk-in customer");
+      $("#creditPaymentBalance").text(new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(balance));
+      $("#creditPaymentAmount").attr("max", balance.toFixed(2)).val(balance.toFixed(2));
+      $("#creditPaymentError").hide().text("");
+      $("#creditPaymentForm").data("idempotencyKey", window.crypto.randomUUID());
+      const history = $("#creditPaymentHistory").text("Loading payment history…");
+      try {
+        const response = await fetch(`${api}${encodeURIComponent(transaction._id)}/payments`, { credentials: "same-origin" });
+        const payments = await response.json();
+        history.empty();
+        if (!response.ok) throw new Error(payments.error || "Unable to load payment history.");
+        if (!payments.length) history.text("No payment events recorded yet.");
+        payments.forEach((payment) => {
+          history.append($("<div>", { text: `${new Date(payment.received_at).toLocaleString()} · ${payment.method.toUpperCase()} · ${validator.unescape(settings.symbol)}${moneyFormat(payment.amount)}` }));
+        });
+      } catch (error) {
+        history.text("Payment history could not be loaded.");
+      }
+      $("#creditPaymentModal").modal("show");
+    };
+
+    $("#creditPaymentForm").on("submit", async function (event) {
+      event.preventDefault();
+      const transactionId = $("#creditPaymentTransactionId").val();
+      const submit = $("#creditPaymentSubmit").prop("disabled", true);
+      $("#creditPaymentError").hide().text("");
+      try {
+        const response = await fetch(`${api}${encodeURIComponent(transactionId)}/payments`, {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            amount: $("#creditPaymentAmount").val(),
+            method: $("#creditPaymentMethod").val(),
+            reference: $("#creditPaymentReference").val(),
+            idempotencyKey: $("#creditPaymentForm").data("idempotencyKey"),
+          }),
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || "Payment was not recorded.");
+        $("#creditPaymentForm").removeData("idempotencyKey");
+        $("#creditPaymentModal").modal("hide");
+        loadTransactions();
+        if (result.duplicate) {
+          notiflix.Report.info("Payment already recorded", "The earlier request completed; the bill list has been refreshed.", "OK");
+        } else {
+          notiflix.Report.success("Payment recorded", `Remaining balance: ${validator.unescape(settings.symbol)}${moneyFormat(result.balance || 0)}`, "OK");
+        }
+      } catch (error) {
+        $("#creditPaymentError").text(error.message || "Unable to record this payment.").show();
+      } finally {
+        submit.prop("disabled", false);
+      }
     });
 
     $("#pointofsale").on("click", function () {
@@ -2083,13 +2208,9 @@ function loadTransactions() {
                                 }</td>
                                 <td>${trans.till}</td>
                                 <td>${trans.user}</td>
-                                <td>${
-                                  trans.paid == ""
-                                    ? '<button class="btn btn-dark"><i class="fa fa-search-plus"></i></button>'
-                                    : '<button onClick="$(this).viewTransaction(' +
-                                      index +
-                                      ')" class="btn btn-info"><i class="fa fa-search-plus"></i></button></td>'
-                                }</tr>
+                                <td>${_.escape(trans.billStatus || (Number(trans.status) === 1 ? "paid" : "open"))}</td>
+                                <td><button onClick="$(this).viewTransaction(${index})" class="btn btn-info" title="View bill"><i class="fa fa-search-plus"></i></button>${trans.billStatus === "credit" ? ` <button onClick="$(this).settleCredit(${index})" class="btn btn-success btn-xs" title="Record customer payment">Settle</button>` : ""}</td>
+                              </tr>
                     `;
 
         if (counter == transactions.length) {
@@ -2248,7 +2369,7 @@ $.fn.viewTransaction = function (index) {
   let products = allTransactions[index].items;
 
   products.forEach((item) => {
-    items += `<tr><td>${item.product_name}</td><td>${
+    items += `<tr><td>${_.escape(item.product_name)}${item.batch_number ? `<br><small>Batch ${_.escape(item.batch_number)}</small>` : ""}</td><td>${
       item.quantity
     } </td><td class="text-right"> ${validator.unescape(settings.symbol)} ${moneyFormat(
       Math.abs(item.price).toFixed(2),

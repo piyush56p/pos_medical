@@ -9,14 +9,16 @@
   "license": "MIT",
   "private": true,
   "engines": {
-    "node": "^24.0.0"
+    "node": "^20.17.0 || ^22.9.0 || ^24.0.0"
   },
   "dependencies": {
     "archiver": "^7.0.1",
     "async": "^3.2.4",
     "bcrypt": "npm:bcryptjs@^2.4.3",
     "body-parser": "^2.3.0",
+    "chart.js": "^4.5.1",
     "connect-pg-simple": "^10.0.0",
+    "csv-parse": "^7.0.3",
     "dompurify": "^3.4.16",
     "express": "^5.2.1",
     "express-fileupload": "^1.4.0",

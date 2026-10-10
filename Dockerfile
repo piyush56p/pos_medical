@@ -1,12 +1,12 @@
-FROM node:24-bookworm-slim AS build
+FROM node:20-bookworm-slim AS build
 
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN npm ci --include=dev
+RUN npm ci --omit=dev
 COPY . .
-RUN npm run build:web
+RUN npm exec --yes --package=esbuild@0.28.2 -- esbuild web-vendor-entry.js web-entry.js --bundle --platform=browser --outdir=assets/dist/js
 
-FROM node:24-bookworm-slim AS runtime
+FROM node:20-bookworm-slim AS runtime
 
 ENV NODE_ENV=production
 ENV PORT=3210

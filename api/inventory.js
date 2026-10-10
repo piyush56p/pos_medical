@@ -1,7 +1,7 @@
 const app = require("express")();
 const server = require("http").Server(app);
 const bodyParser = require("body-parser");
-const { PostgresStore } = require("./postgres-store");
+const { PostgresStore, pool } = require("./postgres-store");
 const async = require("async");
 const sanitizeFilename = require('sanitize-filename');
 const multer = require("multer");
@@ -36,6 +36,30 @@ app.use(bodyParser.json());
 module.exports = app;
 
 let inventoryDB = new PostgresStore({ collection: "inventory" });
+
+async function withBatchStock(product) {
+    if (!product) return product;
+    return (await withBatchStocks([product]))[0];
+}
+
+async function withBatchStocks(products) {
+    if (!products.length) return products;
+    const ids = products.map((product) => String(product._id));
+    const { rows } = await pool.query(
+        `SELECT id, batch_number, expiry_date, quantity, sale_rate, mrp
+         FROM pharmacy_batches WHERE product_id=ANY($1::text[]) AND quantity>0
+         AND (expiry_date IS NULL OR expiry_date >= CURRENT_DATE)
+         ORDER BY expiry_date ASC NULLS LAST, created_at ASC`,
+        [ids],
+    );
+    const batches = new Map();
+    rows.forEach((row) => {
+        const list = batches.get(row.product_id) || [];
+        list.push(row);
+        batches.set(row.product_id, list);
+    });
+    return products.map((product) => ({ ...product, batches: batches.get(String(product._id)) || [] }));
+}
 
 inventoryDB.ensureIndex({ fieldName: "_id", unique: true });
 
@@ -75,18 +99,17 @@ app.get("/", function (req, res) {
  * @param {Object} res response object.
  * @returns {void}
  */
-app.get("/product/:productId", function (req, res) {
+app.get("/product/:productId", async function (req, res) {
     if (!req.params.productId) {
         res.status(500).send("ID field is required.");
     } else {
-        inventoryDB.findOne(
-            {
-                _id: parseInt(req.params.productId),
-            },
-            function (err, product) {
-                res.send(product);
-            },
-        );
+        try {
+            const product = await inventoryDB.findOne({ _id: parseInt(req.params.productId) });
+            res.send(await withBatchStock(product));
+        } catch (error) {
+            console.error("Unable to load product:", error.message);
+            res.sendStatus(500);
+        }
     }
 });
 
@@ -97,10 +120,14 @@ app.get("/product/:productId", function (req, res) {
  * @param {Object} res response object.
  * @returns {void}
  */
-app.get("/products", function (req, res) {
-    inventoryDB.find({}, function (err, docs) {
-        res.send(docs);
-    });
+app.get("/products", async function (req, res) {
+    try {
+        const docs = await inventoryDB.find({});
+        res.send(await withBatchStocks(docs));
+    } catch (error) {
+        console.error("Unable to load products:", error.message);
+        res.sendStatus(500);
+    }
 });
 
 /**
@@ -260,24 +287,26 @@ app.delete("/product/:productId", function (req, res) {
  * @returns {void}
  */
 
-app.post("/product/sku", function (req, res) {
-    let sku = validator.escape(req.body.skuCode);
-    inventoryDB.findOne(
-        {
-            barcode: parseInt(sku),
-        },
-        function (err, doc) {
-            if (err) {
-                console.error(err);
-                res.status(500).json({
-                    error: "Internal Server Error",
-                    message: "An unexpected error occurred.",
-                });
-            } else {
-                res.send(doc);
-            }
-        },
-    );
+app.post("/product/sku", async function (req, res) {
+    const sku = typeof req.body.skuCode === "string" ? req.body.skuCode.trim() : "";
+    if (!sku) return res.status(400).json({ error: "Enter a barcode, product code, or medicine name." });
+    const alternatives = [
+        { barcodeValue: sku },
+        { supplierCode: sku },
+        { name: sku },
+    ];
+    if (/^\d+$/.test(sku)) {
+        const numeric = Number(sku);
+        alternatives.push({ barcode: numeric }, { _id: numeric });
+    }
+    try {
+        const doc = await inventoryDB.findOne({ $or: alternatives });
+        if (doc) res.send(await withBatchStock(doc));
+        else res.sendStatus(404);
+    } catch (error) {
+        console.error("Unable to search product:", error.message);
+        res.sendStatus(500);
+    }
 });
 
 /**

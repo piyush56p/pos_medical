@@ -189,6 +189,40 @@ async function initializeDatabase() {
     }
     const schema = fs.readFileSync(path.join(__dirname, "postgres-schema.sql"), "utf8");
     await pool.query(schema);
+    await runMigrations();
+}
+
+async function runMigrations() {
+    await pool.query(`CREATE TABLE IF NOT EXISTS app_schema_migrations (
+        version TEXT PRIMARY KEY,
+        applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`);
+    const directory = path.join(__dirname, "migrations");
+    const files = fs.readdirSync(directory).filter((file) => /^\d+_.*\.sql$/.test(file)).sort();
+    const client = await pool.connect();
+    try {
+        await client.query("SELECT pg_advisory_lock(hashtext('pharmaspot-schema-migrations'))");
+        for (const file of files) {
+            const version = file.slice(0, file.indexOf("_"));
+            const { rowCount } = await client.query(
+                "SELECT 1 FROM app_schema_migrations WHERE version = $1",
+                [version],
+            );
+            if (rowCount) continue;
+            await client.query("BEGIN");
+            try {
+                await client.query(fs.readFileSync(path.join(directory, file), "utf8"));
+                await client.query("INSERT INTO app_schema_migrations (version) VALUES ($1)", [version]);
+                await client.query("COMMIT");
+            } catch (error) {
+                await client.query("ROLLBACK");
+                throw error;
+            }
+        }
+    } finally {
+        await client.query("SELECT pg_advisory_unlock(hashtext('pharmaspot-schema-migrations'))");
+        client.release();
+    }
 }
 
 function closeDatabase() {
@@ -196,3 +230,4 @@ function closeDatabase() {
 }
 
 module.exports = { PostgresStore, compileFilter, initializeDatabase, closeDatabase, pool };
+module.exports = { PostgresStore, compileFilter, initializeDatabase, runMigrations, closeDatabase, pool };

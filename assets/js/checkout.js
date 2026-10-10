@@ -35,14 +35,9 @@ $(document).ready(function () {
   $.fn.calculateChange = function () {
     var payablePrice = $("#payablePrice").val().replace(",", "");
     var payment = $("#payment").val().replace(",", "");
-    var change = payablePrice - payment;
-    if (change <= 0) {
-      $("#change").text(utils.moneyFormat(Math.abs(change.toFixed(2))));
-      $("#confirmPayment").show();
-    } else {
-      $("#change").text("0");
-      $("#confirmPayment").hide();
-    }
+    var change = Math.max(0, Number(payment) - Number(payablePrice));
+    $("#change").text(utils.moneyFormat(change.toFixed(2)));
+    $("#confirmPayment").toggle(Number(payment) > 0);
   };
 
   var $keypadBtn = $(".keypad-btn").on("click", function () {
@@ -86,7 +81,8 @@ $(document).ready(function () {
 });
 
   /** Switch Views for Payment Options **/
-  var $list = $(".list-group-item").on("click", function () {
+  var $list = $("#paymentMethods .list-group-item").on("click", function (event) {
+    event.preventDefault();
     $list.removeClass("active");
     $(this).addClass("active");
     if (this.id == "check") {
@@ -95,8 +91,34 @@ $(document).ready(function () {
     } else if (this.id == "card") {
       $("#cardInfo").show();
       $("#cardInfo .input-group-addon").text("Card Info");
-    } else if (this.id == "cash") {
+    } else {
       $("#cardInfo").hide();
     }
+    const isSplit = Number($(this).data("payment-type")) === 4;
+    $("#singlePaymentEntry").toggle(!isSplit);
+    $("#splitPaymentFields").toggle(isSplit);
+    if (isSplit) $(".split-payment-amount").first().trigger("focus");
+  });
+
+  $("#paymentModel").on("show.bs.modal", function () {
+    $list.removeClass("active");
+    $("#cash").addClass("active");
+    $("#singlePaymentEntry").show();
+    $("#splitPaymentFields").hide();
+    $("#splitCashAmount,#splitUpiAmount,#splitCardAmount").val("0");
+    $("#splitCardReference").val("");
+    $("#payment,#paymentText").val("");
+    $("#change").text("0");
+  });
+
+  $(".split-payment-amount").on("input", function () {
+    const amounts = ["#splitCashAmount", "#splitUpiAmount", "#splitCardAmount"].map((selector) => Number($(selector).val()) || 0);
+    const total = amounts.reduce((sum, amount) => sum + amount, 0);
+    const payable = Number($("#payablePrice").val().replace(/,/g, "")) || 0;
+    $("#splitPaymentTotal").text(`₹${utils.moneyFormat(total.toFixed(2))}`);
+    $("#payment").val(total.toFixed(2));
+    $("#paymentText").val(utils.moneyFormat(total.toFixed(2)));
+    $("#change").text("0.00");
+    $("#confirmPayment").toggle(total > 0 && total <= payable);
   });
 });

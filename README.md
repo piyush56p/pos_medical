@@ -64,7 +64,7 @@ The web version runs in a browser and stores application records in PostgreSQL. 
 
 ## Run Locally
 
-- Install Node.js 24 and PostgreSQL.
+- Install Node.js 20.17+ and PostgreSQL.
 - Create a PostgreSQL database and set `DATABASE_URL` to its connection string.
 - Set `SESSION_SECRET` to a random value at least 32 characters long.
 - Set `OWNER_USERNAME` and `OWNER_PASSWORD`; the password must be at least 12 characters.
@@ -89,6 +89,39 @@ The test database is configured on Render's free database plan, which is tempora
 - Run `docker compose logs -f web` to inspect startup. Caddy obtains HTTPS certificates after the domain resolves to the VPS.
 
 PostgreSQL and uploaded images use Docker volumes so they survive container rebuilds. Configure and test backups before storing business data.
+
+## Version 2 Workflows
+
+- `POST /api/imports` uploads a supplier CSV into `UPLOADS_DIR/inventory-imports` and records metadata in PostgreSQL.
+- `GET /api/imports` lists import history; `GET /api/imports/:id/preview` streams and validates rows; `POST /api/imports/:id/commit` imports only after `{ "confirm": true }`.
+- `GET /api/imports/:id/file` downloads the original file; `GET /api/imports/:id/errors.csv` downloads invalid-row details.
+- `GET /api/dashboard/summary?period=today|yesterday|7d|30d` returns real sales, collection, credit, inventory, category, and activity metrics. Custom ranges use `period=custom&from=YYYY-MM-DD&to=YYYY-MM-DD`.
+- `GET /api/:transactionId/payments` lists payment history; `POST /api/:transactionId/payments` records an idempotent partial or final credit payment.
+
+The sample invoice parser maps `SRATE` to the existing POS sale price and preserves `FTRATE`, MRP, tax, invoice columns, and extra source fields on batch metadata. Missing categories remain null. Separate batches retain separate expiry and stock. Repeat invoice rows are skipped using supplier invoice and row signatures.
+
+## V2 Safe VPS Rollout
+
+V2 migrations are additive and run automatically when the web container starts. **Back up first; do not use `docker compose down -v`**, because that deletes the database and upload volumes.
+
+1. On the Droplet, back up PostgreSQL and uploaded files:
+	```bash
+	mkdir -p "$HOME/pharmaspot-backups"
+	docker compose exec -T database sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB"' > "$HOME/pharmaspot-backups/db-$(date +%Y%m%d-%H%M%S).sql"
+	docker compose exec -T web tar -C /data -czf - uploads > "$HOME/pharmaspot-backups/uploads-$(date +%Y%m%d-%H%M%S).tar.gz"
+	```
+2. Confirm both backup files exist and are non-empty before proceeding.
+3. Run the build and tests from a development checkout: `npm ci`, `npm run build:web`, and `npm test -- --runInBand`.
+4. On the Droplet, pull the approved commit and rebuild only the web service:
+	```bash
+	git pull origin main
+	docker compose build web
+	docker compose up -d --no-deps web
+	docker compose logs --tail=100 web
+	```
+5. Verify `/healthz`, existing login/POS, a held and finalized test bill, a partial and final credit payment, CSV upload/preview, original/error downloads, and that uploads still exist after a web-container recreate. Use test records, not live pharmacy data.
+
+If the web release fails, redeploy the previous application commit/image while retaining the same PostgreSQL and upload volumes. The added tables are backward-compatible; do not drop migrations or volumes during rollback. Restore the SQL/upload backups only if data was actually changed or corrupted, and verify a restore on a separate test instance first.
 
 ## For Developers
 - Clone this project.
