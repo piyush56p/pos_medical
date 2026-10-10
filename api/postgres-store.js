@@ -10,14 +10,14 @@ const pool = new Pool({
         : undefined,
 });
 
-function compileFilter(filter = {}, params = [], parameterOffset = 1) {
+function compileFilter(filter = {}, params = [], parameterOffset = 1, initialParamCount = params.length) {
     if (!filter || typeof filter !== "object" || Array.isArray(filter)) {
         throw new TypeError("A datastore filter must be an object.");
     }
 
     const nextParameter = (value) => {
         params.push(JSON.stringify(value));
-        return `$${parameterOffset + params.length - 1}::jsonb`;
+        return `$${parameterOffset + params.length - initialParamCount - 1}::jsonb`;
     };
 
     const clauses = Object.entries(filter).map(([key, value]) => {
@@ -29,7 +29,7 @@ function compileFilter(filter = {}, params = [], parameterOffset = 1) {
                 return key === "$and" ? "TRUE" : "FALSE";
             }
             const joiner = key === "$and" ? " AND " : " OR ";
-            return `(${value.map((item) => compileFilter(item, params, parameterOffset)).join(joiner)})`;
+            return `(${value.map((item) => compileFilter(item, params, parameterOffset, initialParamCount)).join(joiner)})`;
         }
 
         if (!/^[a-zA-Z0-9_]+$/.test(key)) {

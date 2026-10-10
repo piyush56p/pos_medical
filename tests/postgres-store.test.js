@@ -11,6 +11,15 @@ describe("compileFilter", () => {
         expect(params).toEqual(["1", '"owner"']);
     });
 
+    test("numbers filters after preexisting query parameters", () => {
+        const params = ["users"];
+
+        expect(compileFilter({ username: "poojamedicos" }, params, 2)).toBe(
+            "document -> 'username' = $2::jsonb",
+        );
+        expect(params).toEqual(["users", '"poojamedicos"']);
+    });
+
     test("compiles nested boolean and comparison filters", () => {
         const params = [];
         const filter = {

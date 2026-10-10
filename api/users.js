@@ -91,6 +91,10 @@ app.post("/login", function (req, res) {
             username,
         },
         function (err, docs) {
+            if (err) {
+                console.error("User login lookup failed:", err.message);
+                return res.sendStatus(500);
+            }
             if (docs) {
                 //verify password
                 bcrypt
