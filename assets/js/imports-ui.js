@@ -18,6 +18,7 @@ function updateSelectedImportFile(file) {
   importState.importId = null;
   importState.preview = null;
   $("#inventoryImportPreview").hide();
+  $("#inventoryImportCommit").show().prop("disabled", true);
   $("#inventoryImportUpload").prop("disabled", !file);
   $("#inventoryImportFileInfo").text(file ? `${file.name} · ${formatBytes(file.size)}` : "No file selected");
 }
@@ -54,9 +55,15 @@ function renderImportPreview(data, importId) {
     });
     rows.append(tr);
   });
-  const ready = data.summary && data.summary.validRows > 0;
-  $("#inventoryImportCommit").prop("disabled", !ready || data.error);
+  const readyRows = Number(data.summary && data.summary.validRows) || 0;
+  const canCommit = readyRows > 0 && !data.error;
+  $("#inventoryImportCommit")
+    .show()
+    .prop("disabled", !canCommit)
+    .text(canCommit ? `Save ${readyRows} product${readyRows === 1 ? "" : "s"} to inventory` : "No valid products to save")
+    .attr("title", canCommit ? "Save the valid products and batches in this preview." : (data.error || "Correct the CSV errors before saving."));
   if (data.error) showImportMessage(data.error, "danger");
+  else if (!canCommit) showImportMessage("No rows are ready to save. Review the validation errors or duplicates in the preview.", "warning");
   const errorsUrl = `/api/imports/${encodeURIComponent(importId)}/errors.csv`;
   $("#inventoryImportErrors").attr("href", errorsUrl).toggle(Number(data.summary && data.summary.invalidRows) > 0);
 }
@@ -67,7 +74,8 @@ async function previewImport(importId) {
     const response = await fetch(`/api/imports/${encodeURIComponent(importId)}/preview`, { credentials: "same-origin" });
     const data = await response.json();
     renderImportPreview(data, importId);
-    if (response.ok) showImportMessage("Preview ready. Confirm only after checking the product and batch matches.", "success");
+    if (response.ok && Number(data.summary && data.summary.validRows) > 0) showImportMessage("Preview ready. Check the matches, then save the valid rows to inventory.", "success");
+    else if (response.ok) showImportMessage("No rows are ready to save. Review the validation errors in the preview.", "warning");
     else showImportMessage(data.error || "Preview failed.", "danger");
   } catch (error) {
     showImportMessage("Unable to preview this file. Check the connection and retry.", "danger");
@@ -174,11 +182,14 @@ $(function () {
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Import failed.");
-      const summary = result.summary;
-      showImportMessage(`${result.status}: ${summary.productsCreated} products created, ${summary.productsMatched} rows matched, ${summary.batchesCreated} batches created, ${summary.quantityAdded} units added, ${summary.failedRows} row errors.`, result.status === "completed" ? "success" : "warning");
-      $("#inventoryImportCommit").hide();
+      const summary = result.summary || {};
+      const saved = Number(summary.importedRows) || 0;
+      const errors = Number(summary.failedRows) || 0;
+      showImportMessage(`${result.status}: saved ${saved} rows (${Number(summary.productsCreated) || 0} new products, ${Number(summary.productsMatched) || 0} matched). Added ${Number(summary.quantityAdded) || 0} units; ${errors} rows need attention.`, result.status === "completed" ? "success" : "warning");
+      if (result.status === "completed") $("#inventoryImportCommit").hide();
+      else await previewImport(importState.importId);
       await loadImportHistory();
-      window.location.reload();
+      $(document).trigger("pharmaspot:refresh-products");
     } catch (error) {
       showImportMessage(error.message || "Import failed. No partial database changes were committed.", "danger");
       $("#inventoryImportCommit").prop("disabled", false);

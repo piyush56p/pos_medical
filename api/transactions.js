@@ -29,7 +29,11 @@ function collectedAmount(total, tendered, change) {
   const safeTotal = Math.max(0, Number(total) || 0);
   const safeTendered = Math.max(0, Number(tendered) || 0);
   const safeChange = Math.max(0, Number(change) || 0);
-  return Math.min(safeTotal, Math.max(0, safeTendered - safeChange));
+  return Math.round(Math.min(safeTotal, Math.max(0, safeTendered - safeChange)) * 100) / 100;
+}
+
+function hasNamedCustomer(customer) {
+  return Boolean(customer && typeof customer === "object" && String(customer.name || "").trim());
 }
 
 function salePaymentBreakdown(body, total, collected) {
@@ -59,6 +63,26 @@ function salePaymentBreakdown(body, total, collected) {
 
 async function decrementInventory(client, products, actorId, transactionId) {
   if (!Array.isArray(products)) throw Object.assign(new Error("Transaction items are invalid."), { statusCode: 400 });
+  async function decrementLocationStock(productId, batchId, used) {
+    const located = await client.query(
+      `SELECT id,quantity FROM pharmacy_stock_locations
+       WHERE product_id=$1 AND batch_id IS NOT DISTINCT FROM $2::text
+       ORDER BY created_at,id FOR UPDATE`,
+      [productId, batchId],
+    );
+    let left = used;
+    for (const location of located.rows) {
+      if (left <= 0) break;
+      const atLocation = Number(location.quantity) || 0;
+      const taken = Math.min(atLocation, left);
+      if (atLocation - taken <= 0.0001) {
+        await client.query("DELETE FROM pharmacy_stock_locations WHERE id=$1", [location.id]);
+      } else {
+        await client.query("UPDATE pharmacy_stock_locations SET quantity=quantity-$2,updated_at=NOW() WHERE id=$1", [location.id, taken]);
+      }
+      left -= taken;
+    }
+  }
   for (const item of products) {
     const productId = String(item.id ?? "");
     const quantity = Number(item.quantity);
@@ -95,6 +119,7 @@ async function decrementInventory(client, products, actorId, transactionId) {
            VALUES ($1,$2,$3,$4,'sale',$5,$6)`,
           [crypto.randomUUID(), productId, batch.id, -used, transactionId, String(actorId)],
         );
+        await decrementLocationStock(productId, batch.id, used);
         remaining -= used;
       }
       if (remaining > 0) throw Object.assign(new Error(`Insufficient batch stock for ${product.name}.`), { statusCode: 409 });
@@ -113,6 +138,7 @@ async function decrementInventory(client, products, actorId, transactionId) {
          VALUES ($1,$2,$3,'sale',$4,$5)`,
         [crypto.randomUUID(), productId, -quantity, transactionId, String(actorId)],
       );
+      await decrementLocationStock(productId, null, quantity);
     }
 
     const updatedProduct = { ...product, quantity: (Number(product.quantity) || 0) - quantity };
@@ -276,6 +302,10 @@ app.post("/new", async function (req, res) {
       return res.status(409).json({ error: "This bill already exists. Reload it before submitting again." });
     }
     const collected = collectedAmount(total, newTransaction.paid, newTransaction.change);
+    if (finalized && collected < total && !hasNamedCustomer(newTransaction.customer)) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({ error: "A customer name is required to save an unpaid or partially paid bill." });
+    }
     let paymentEntries = [];
     try {
       if (finalized) paymentEntries = salePaymentBreakdown(newTransaction, total, collected);
@@ -344,6 +374,10 @@ app.put("/new", async function (req, res) {
     }
     const total = Number(req.body.total);
     const collected = collectedAmount(total, req.body.paid, req.body.change);
+    if (finalized && collected < total && !hasNamedCustomer(req.body.customer)) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({ error: "A customer name is required to save an unpaid or partially paid bill." });
+    }
     let paymentEntries = [];
     try {
       if (finalized) paymentEntries = salePaymentBreakdown(req.body, total, collected);
@@ -522,3 +556,4 @@ module.exports.normalizePaymentMethod = normalizePaymentMethod;
 module.exports.getBillStatus = getBillStatus;
 module.exports.collectedAmount = collectedAmount;
 module.exports.salePaymentBreakdown = salePaymentBreakdown;
+module.exports.hasNamedCustomer = hasNamedCustomer;

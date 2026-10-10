@@ -5,6 +5,7 @@
     <meta charset="UTF-8">
     <title></title>
     <link href="assets/dist/css/bundle.min.css" rel="stylesheet" type="text/css" />
+    <link href="assets/css/inventory.css?v=pharmacy-v3-4" rel="stylesheet" type="text/css" />
 </head>
 
 <body>
@@ -34,8 +35,8 @@
                 <div class="col-md-6">
                     <div class="button-list pull-left m-t-15 m-l-10">
                         <div class="btn-group p_one">
-                            <button id="productModal" data-toggle="modal" data-target="#Products" type="button" class="btn btn-success waves-effect waves-light">
-                                <span class="btn-label"><i class="  glyphicon glyphicon-barcode"></i> </span> Products
+                            <button id="productModal" type="button" class="btn btn-success waves-effect waves-light">
+                                <span class="btn-label"><i class="glyphicon glyphicon-barcode"></i> </span> Inventory
                             </button>
                             <button id="newProductModal" data-toggle="modal" data-target="#newProduct" type="button" class="btn btn-warning waves-effect waves-light">
                                 <i class="fa fa-plus"></i>
@@ -55,7 +56,7 @@
                         <button id="viewRefOrders" data-toggle="modal" data-target="#holdOrdersModal" type="button" class="btn btn-info waves-effect waves-light">
                             <span class="btn-label"><i class="fa fa-shopping-basket"></i> </span> Open Tabs
                         </button>
-                        <button id="viewCustomerOrders" data-toggle="modal" data-target="#customerModal" type="button" onclick="$(this).getCustomerOrders()" class="btn btn-info waves-effect waves-light">
+                        <button id="viewCustomerOrders" data-toggle="modal" data-target="#customerModal" type="button" class="btn btn-info waves-effect waves-light">
                             <span class="btn-label"><i class="fa fa-shopping-cart"></i></span> Orders
                         </button>
                     </div>
@@ -80,9 +81,19 @@
                     </div>
                 </div>
             </div>
-            <section id="dashboard_view" aria-labelledby="dashboardTitle">
+            <section id="dashboard_view" class="dashboard-page" aria-labelledby="dashboardTitle">
+                <div class="dashboard-workspace">
+                    <aside class="inventory-sidebar dashboard-sidebar" aria-label="Main navigation">
+                        <div class="inventory-sidebar-brand"><span class="inventory-brand-mark"><i class="fa fa-plus" aria-hidden="true"></i></span><strong>Pharmacy</strong></div>
+                        <p class="inventory-sidebar-label">MAIN MENU</p>
+                        <button id="dashboardHomeNav" type="button" class="inventory-sidebar-link is-active" aria-current="page"><i class="fa fa-th-large" aria-hidden="true"></i> Dashboard</button>
+                        <button id="dashboardProductsNav" type="button" class="inventory-sidebar-link"><i class="fa fa-medkit" aria-hidden="true"></i> Products</button>
+                        <button id="dashboardCategoriesNav" type="button" class="inventory-sidebar-link"><i class="fa fa-th" aria-hidden="true"></i> Categories</button>
+                        <button id="dashboardLocationsNav" type="button" class="inventory-sidebar-link"><i class="fa fa-map-marker" aria-hidden="true"></i> Locations</button>
+                    </aside>
+                    <div class="dashboard-content">
                 <div class="row m-t-20 m-b-10">
-                    <div class="col-sm-6"><h2 id="dashboardTitle">Overview</h2><p id="dashboardRangeLabel" class="text-muted">Loading pharmacy activity…</p></div>
+                    <div class="col-sm-6"><p class="inventory-eyebrow">PHARMACY OVERVIEW</p><h2 id="dashboardTitle">Dashboard</h2><p id="dashboardRangeLabel" class="dashboard-range-label">Loading activity...</p></div>
                     <div class="col-sm-6 text-right">
                         <label class="sr-only" for="dashboardPeriod">Dashboard period</label>
                         <select id="dashboardPeriod" class="form-control dashboard-period">
@@ -113,8 +124,8 @@
                     <div class="col-sm-6 col-lg-3"><div class="dashboard-kpi dashboard-kpi-compact"><span>Stock attention</span><strong><span id="dashboardLowStock">0</span> low · <span id="dashboardOutStock">0</span> out</strong></div></div>
                 </div>
                 <div class="row">
-                    <div class="col-lg-8"><section class="dashboard-panel" aria-labelledby="salesTrendTitle"><h3 id="salesTrendTitle">Sales trend</h3><canvas id="dashboardSalesChart" aria-label="Daily sales trend chart"></canvas><p id="dashboardEmptySales" class="text-muted" style="display:none">No finalized sales in this range.</p></section></div>
-                    <div class="col-lg-4"><section class="dashboard-panel" aria-labelledby="paymentMixTitle"><h3 id="paymentMixTitle">Collections by method</h3><canvas id="dashboardPaymentsChart" aria-label="Payment method distribution"></canvas><p id="dashboardEmptyPayments" class="text-muted" style="display:none">No payments in this range.</p></section></div>
+                    <div class="col-lg-8"><section class="dashboard-panel" aria-labelledby="salesTrendTitle"><h3 id="salesTrendTitle">Sales trend</h3><div class="dashboard-chart-wrap dashboard-sales-chart-wrap"><canvas id="dashboardSalesChart" aria-label="Daily sales trend chart"></canvas></div><p id="dashboardEmptySales" class="text-muted" style="display:none">No finalized sales in this range.</p></section></div>
+                    <div class="col-lg-4"><section class="dashboard-panel" aria-labelledby="paymentMixTitle"><h3 id="paymentMixTitle">Collections by method</h3><div class="dashboard-chart-wrap dashboard-payment-chart-wrap"><canvas id="dashboardPaymentsChart" aria-label="Payment method distribution"></canvas></div><p id="dashboardEmptyPayments" class="text-muted" style="display:none">No payments in this range.</p></section></div>
                 </div>
                 <div class="row">
                     <div class="col-lg-4"><section class="dashboard-panel"><h3>Best-selling medicines</h3><div class="table-responsive"><table class="table table-condensed"><thead><tr><th>Medicine</th><th>Qty</th><th>Sales</th></tr></thead><tbody id="dashboardBestSellers"><tr><td colspan="3">Loading…</td></tr></tbody></table></div></section></div>
@@ -122,6 +133,55 @@
                     <div class="col-lg-4"><section class="dashboard-panel"><h3>Inventory attention</h3><p id="dashboardExpirySummary" class="text-muted">Expiry alerts use a 30-day threshold.</p><div id="dashboardInventoryButtons" class="dashboard-alert-links"><button id="dashboardLowStockOpen" type="button" class="btn btn-link btn-xs" data-inventory-list="lowStockProducts">Low stock</button><button id="dashboardOutStockOpen" type="button" class="btn btn-link btn-xs" data-inventory-list="outOfStockProducts">Out of stock</button><button id="dashboardNearExpiryOpen" type="button" class="btn btn-link btn-xs" data-inventory-list="nearExpiryItems">Near expiry</button><button id="dashboardExpiredOpen" type="button" class="btn btn-link btn-xs" data-inventory-list="expiredItems">Expired</button></div><div id="dashboardInventoryDetails" class="table-responsive" style="display:none"><table class="table table-condensed"><thead><tr><th>Medicine</th><th>Batch / stock</th><th>Expiry / threshold</th></tr></thead><tbody id="dashboardInventoryRows"></tbody></table></div><h4>Recent activity</h4><ul id="dashboardActivity" class="dashboard-activity"><li>Loading…</li></ul></section></div>
                 </div>
                 <div class="row"><div class="col-xs-12"><p id="dashboardProfitNote" class="text-muted"></p></div></div>
+                    </div>
+                </div>
+            </section>
+            <section id="inventory_view" class="inventory-page" aria-labelledby="inventoryPageTitle" style="display:none">
+                <div class="inventory-workspace">
+                    <aside class="inventory-sidebar" aria-label="Inventory navigation">
+                        <div class="inventory-sidebar-brand"><span class="inventory-brand-mark"><i class="fa fa-plus" aria-hidden="true"></i></span><strong>Pharmacy</strong></div>
+                        <p class="inventory-sidebar-label">MAIN MENU</p>
+                        <button id="inventoryOverviewNav" type="button" class="inventory-sidebar-link"><i class="fa fa-th-large" aria-hidden="true"></i> Dashboard</button>
+                        <button type="button" class="inventory-sidebar-link is-active" aria-current="page"><i class="fa fa-medkit" aria-hidden="true"></i> Products</button>
+                        <button id="inventoryCategoriesNav" type="button" class="inventory-sidebar-link"><i class="fa fa-th" aria-hidden="true"></i> Categories</button>
+                        <button id="inventoryLocationsNav" type="button" class="inventory-sidebar-link"><i class="fa fa-map-marker" aria-hidden="true"></i> Locations</button>
+                    </aside>
+                    <div class="inventory-content">
+                <div class="inventory-page-header">
+                    <div>
+                        <p class="inventory-eyebrow">PHARMACY OPERATIONS</p>
+                        <h2 id="inventoryPageTitle">Products Inventory</h2>
+                        <p class="inventory-subtitle">Manage medicines, stock levels, batches, and expiry dates.</p>
+                    </div>
+                    <div class="inventory-page-actions">
+                        <button id="inventoryPageImport" type="button" class="btn inventory-secondary-action"><i class="fa fa-upload"></i> Import CSV</button>
+                        <button id="inventoryPageAdd" type="button" class="btn inventory-primary-action"><i class="fa fa-plus"></i> Add Product</button>
+                    </div>
+                </div>
+                <div class="inventory-stat-grid" aria-live="polite">
+                    <article class="inventory-stat-card"><span>Total products</span><strong id="inventoryStatProducts">0</strong><small>Medicine records</small></article>
+                    <article class="inventory-stat-card"><span>Units in stock</span><strong id="inventoryStatUnits">0</strong><small>Available inventory</small></article>
+                    <article class="inventory-stat-card"><span>Low stock</span><strong id="inventoryStatLow">0</strong><small>At or below minimum</small></article>
+                    <article class="inventory-stat-card"><span>Out of stock</span><strong id="inventoryStatOut">0</strong><small>Needs replenishment</small></article>
+                </div>
+                <div class="inventory-list-panel">
+                    <div class="inventory-list-heading">
+                        <div><h3>Products list</h3><p>Search and filter your pharmacy inventory.</p></div>
+                        <div class="inventory-list-filters">
+                            <label class="inventory-search"><i class="fa fa-search" aria-hidden="true"></i><input id="inventorySearch" type="search" placeholder="Search medicine or barcode" aria-label="Search medicine or barcode"></label>
+                            <select id="inventoryCategoryFilter" class="form-control" aria-label="Filter by category"><option value="">All categories</option></select>
+                        </div>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table inventory-table">
+                            <thead><tr><th>Medicine</th><th>Category</th><th>Supplier</th><th>Quantity</th><th>Sale price</th><th>Expiry date</th><th>Store location</th><th><span class="sr-only">Actions</span></th></tr></thead>
+                            <tbody id="inventoryPageRows"><tr><td colspan="7" class="inventory-empty">Loading products…</td></tr></tbody>
+                        </table>
+                    </div>
+                    <p id="inventoryPageMessage" class="inventory-page-message" role="status" aria-live="polite"></p>
+                </div>
+                    </div>
+                </div>
             </section>
             <div id="transactions_view">
                 <div class="container">
@@ -263,7 +323,7 @@
                                                 <div class="col-md-3"><strong>Item</strong></div>
                                                 <div class="col-md-3"><strong>Qty</strong></div>
                                                 <div class="col-md-3"><strong>Price</strong></div>
-                                                <div class="col-md-1"><button onclick="$(this).cancelOrder()" class="btn btn-light btn-xs"><i class="fa fa-times"></i></button>
+                                                <div class="col-md-1"><button type="button" class="btn btn-light btn-xs pos-cart-clear"><i class="fa fa-times"></i></button>
                                                 </div>
                                             </div>
                                         </div>
@@ -282,7 +342,7 @@
                                 </div>
                                 <div class="row">
                                     <div class="col-md-3">Discount</div>
-                                    <div class="col-md-3"><input class="form-control" type="number" id="inputDiscount" minimum="0" placeholder="amount" oninput="$(this).calculateCart();"></div>
+                                    <div class="col-md-3"><input class="form-control" type="number" id="inputDiscount" minimum="0" placeholder="amount"></div>
                                     <div class="col-md-3">Gross Price (inc <span id="taxInfo"></span>% Tax)</div>
                                     <div class="col-md-3">
                                         <h3 id="gross_price">0.00</h3>
@@ -290,10 +350,10 @@
                                 </div>
                             </div>
                             <div class="button-list pull-right">
-                                <button onclick="$(this).submitDueOrder(3);" type="button" class="btn btn-info waves-effect waves-light">
+                                <button type="button" class="btn btn-info waves-effect waves-light complete-due-order">
                                     <i class="fa fa-print"></i>
                                 </button>
-                                <button onclick="$(this).cancelOrder()" type="button" class="btn btn-danger waves-effect waves-light">
+                                <button type="button" class="btn btn-danger waves-effect waves-light pos-cart-clear">
                                     <span class="btn-label"><i class="fa fa-ban"></i></span>Cancel
                                 </button>
                                 <button type="button" id="hold" class="btn btn-info waves-effect waves-light">
@@ -387,7 +447,7 @@
                         </div>
                     </div>
                     <div class="modal-footer">
-                        <button type="button" onclick="$(this).submitDueOrder(0);" class="btn btn-primary btn-block btn-lg waves-effect waves-light">Hold Order</button>
+                        <button type="button" class="btn btn-primary btn-block btn-lg waves-effect waves-light hold-order-submit">Hold Order</button>
                     </div>
                 </div><!-- /.modal-content -->
             </div><!-- /.modal-dialog -->
@@ -548,7 +608,7 @@
             </div>
         </div>
         <div id="newProduct" class="modal fade bs-example-modal-sm" tabindex="-1" role="dialog" aria-labelledby="mySmallModalLabel" aria-hidden="true">
-            <div class="modal-dialog modal-sm">
+            <div class="modal-dialog modal-lg">
                 <div class="modal-content">
                     <div class="modal-header">
                         <button type="button" class="close" data-dismiss="modal" aria-hidden="true">×</button>
@@ -573,12 +633,40 @@
                                 <input type="text" required="required" name="name" parsley-trigger="change" placeholder="Enter a product name" class="form-control" id="productName">
                             </div>
                             <div class="form-group">
+                                <label for="manufacturer">Manufacturer</label>
+                                <input type="text" name="manufacturer" placeholder="Manufacturer / company" class="form-control" id="manufacturer">
+                            </div>
+                            <div class="form-group">
+                                <label for="genericName">Generic / salt name</label>
+                                <input type="text" name="genericName" placeholder="Generic medicine name" class="form-control" id="genericName">
+                            </div>
+                            <div class="form-group">
+                                <label for="packSize">Pack size</label>
+                                <input type="text" name="packSize" placeholder="e.g. 10 tablets" class="form-control" id="packSize">
+                            </div>
+                            <div class="form-group">
                                 <label for="barcode">BarCode</label>
-                                <input type="text" required="required" name="barcode" parsley-trigger="change" placeholder="Enter product barcode" class="form-control number-input" id="barcode">
+                                <input type="text" required="required" inputmode="numeric" name="barcode" parsley-trigger="change" placeholder="Enter product barcode" class="form-control number-input" id="barcode">
                             </div>
                             <div class="form-group">
                                 <label for="product_price">Price</label>
                                 <input type="text" required="required" name="price" placeholder="Price" class="form-control number-input" id="product_price">
+                            </div>
+                            <div class="form-group">
+                                <label for="purchaseRate">Purchase rate (INR)</label>
+                                <input type="number" name="purchaseRate" min="0" step="0.01" placeholder="Optional" class="form-control" id="purchaseRate">
+                            </div>
+                            <div class="form-group">
+                                <label for="mrp">MRP (INR)</label>
+                                <input type="number" name="mrp" min="0" step="0.01" placeholder="Optional" class="form-control" id="mrp">
+                            </div>
+                            <div class="form-group">
+                                <label for="gstRate">GST rate (%)</label>
+                                <input type="number" name="gstRate" min="0" max="100" step="0.01" placeholder="As supplied" class="form-control" id="gstRate">
+                            </div>
+                            <div class="form-group">
+                                <label for="hsnCode">HSN code</label>
+                                <input type="text" name="hsnCode" maxlength="20" placeholder="Optional" class="form-control" id="hsnCode">
                             </div>
                             <div class="form-group">
                                 <label for="expirationDate">Expiry Date</label>
@@ -589,19 +677,19 @@
                                 <input type="number" name="quantity" placeholder="Available stock" class="form-control" id="quantity" min="0">
                             </div>
                             <div class="form-group">
-                                <label for="quantity">Minimum Stock</label>
-                                <input type="number" name="minStock" placeholder="Minimum Stock" class="form-control" id="minStock" min="1">
+                                <label for="minStock">Minimum Stock</label>
+                                <input type="number" name="minStock" placeholder="Minimum Stock" class="form-control" id="minStock" min="0" step="any">
                             </div>
                             <div class="form-group">
                                 <label><input type="checkbox" name="stock" id="stock"> Disable stock check </label>
                             </div>
                             <div class="form-group">
                                 <label for="imagename"><span id="rmv_img" class="btn btn-xs btn-warning">Remove</span>
-                                Picture </label>
+                                Product picture </label>
                                 <div id="current_img"></div>
                                 <input type="file" name="imagename" id="imagename">
                             </div>
-                            <input type="submit" id="submitProduct" class="btn btn-primary btn-block waves-effect waves-light">
+                            <input type="submit" id="submitProduct" value="Save product" class="btn btn-primary btn-block waves-effect waves-light">
                         </form>
                     </div>
                 </div>
@@ -800,7 +888,7 @@
             <div class="modal-dialog modal-sm">
                 <div class="modal-content">
                     <div class="modal-header">
-                        <button class="btn btn-sm btn-success" onclick="$(this).print()">Print</button> <br> <button type="button" class="close" data-dismiss="modal" aria-hidden="true">×</button>
+                        <button type="button" class="btn btn-sm btn-success print-transaction">Print</button> <br> <button type="button" class="close" data-dismiss="modal" aria-hidden="true">×</button>
                     </div>
                     <div class="modal-body" id="viewTransaction">
                     </div>
@@ -808,6 +896,38 @@
                     </div>
                 </div>
             </div>
+        </div>
+        <div id="locationManagerModal" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="locationManagerTitle" aria-hidden="true">
+            <div class="modal-dialog modal-lg"><div class="modal-content">
+                <div class="modal-header"><button type="button" class="close" data-dismiss="modal" aria-hidden="true">×</button><h4 class="modal-title" id="locationManagerTitle">Store locations</h4></div>
+                <div class="modal-body">
+                    <p class="text-muted">Build locations from section to rack, shelf, and bin. Existing stock is never assigned a location automatically.</p>
+                    <form id="saveLocationForm" class="location-create-form">
+                        <div class="form-group"><label for="locationType">Location level</label><select id="locationType" class="form-control"><option value="section">Section</option><option value="rack">Rack</option><option value="shelf">Shelf</option><option value="bin">Bin</option></select></div>
+                        <div class="form-group" id="locationParentGroup"><label for="locationParent">Parent location</label><select id="locationParent" class="form-control"></select></div>
+                        <div class="form-group"><label for="locationName">Name</label><input id="locationName" class="form-control" maxlength="80" placeholder="e.g. Rack 03" required></div>
+                        <button type="submit" class="btn inventory-primary-action">Add location</button>
+                    </form>
+                    <p id="locationManagerMessage" class="inventory-page-message" role="status"></p>
+                    <div class="table-responsive"><table class="table inventory-table"><thead><tr><th>Location path</th><th>Products</th><th>Assigned units</th><th>Status</th><th>Action</th></tr></thead><tbody id="locationTreeRows"><tr><td colspan="5">Loading locations…</td></tr></tbody></table></div>
+                </div>
+            </div></div>
+        </div>
+        <div id="productLocationsModal" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="productLocationsTitle" aria-hidden="true">
+            <div class="modal-dialog modal-lg"><div class="modal-content">
+                <div class="modal-header"><button type="button" class="close" data-dismiss="modal" aria-hidden="true">×</button><h4 class="modal-title" id="productLocationsTitle">Assign stock locations</h4></div>
+                <div class="modal-body">
+                    <form id="productLocationsForm">
+                        <input id="locationProductId" type="hidden">
+                        <p><strong id="locationProductName"></strong> <span id="locationAvailableStock" class="text-muted"></span></p>
+                        <div class="form-group"><label for="locationBatchSelect">Stock pool / batch</label><select id="locationBatchSelect" class="form-control"></select></div>
+                        <div id="locationAssignmentRows"></div>
+                        <button id="addLocationAssignment" type="button" class="btn inventory-secondary-action"><i class="fa fa-plus"></i> Add another location</button>
+                        <p id="productLocationsMessage" class="inventory-page-message" role="status"></p>
+                        <button type="submit" class="btn inventory-primary-action">Save locations</button>
+                    </form>
+                </div>
+            </div></div>
         </div>
         <div id="inventoryImportModal" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="inventoryImportTitle" aria-hidden="true">
             <div class="modal-dialog modal-lg">
@@ -827,11 +947,11 @@
                         </div>
                         <div class="row m-b-10">
                             <div class="col-sm-8"><div id="inventoryImportMessage" class="alert" role="status" style="display:none"></div></div>
-                            <div class="col-sm-4 text-right"><button id="inventoryImportUpload" type="button" class="btn btn-primary" disabled>Upload and Preview</button></div>
+                            <div class="col-sm-4 text-right"><button id="inventoryImportUpload" type="button" class="btn btn-primary" disabled>Upload CSV and Preview</button></div>
                         </div>
                         <div id="inventoryImportPreview" style="display:none">
                             <h4>Preview</h4>
-                            <p>Category is left unassigned when it is not present in the supplier file. Review matches and errors before importing.</p>
+                            <p>Uploading stores the original file. Confirming below writes valid products and batches to PostgreSQL. Category is left unassigned when it is not present in the supplier file.</p>
                             <div id="inventoryImportSummary" class="row"></div>
                             <div class="table-responsive">
                                 <table class="table table-striped table-condensed">
@@ -839,7 +959,7 @@
                                     <tbody id="inventoryImportRows"></tbody>
                                 </table>
                             </div>
-                            <button id="inventoryImportCommit" type="button" class="btn btn-success" disabled>Confirm and Import</button>
+                            <button id="inventoryImportCommit" type="button" class="btn btn-success" disabled>Save products to inventory</button>
                             <a id="inventoryImportErrors" class="btn btn-default" style="display:none">Download failed rows</a>
                         </div>
                         <hr>
@@ -994,7 +1114,7 @@
             </div>
         </div>
     </div>
-    <script src="/assets/dist/js/web-vendor-entry.js"></script>
+    <script src="/assets/dist/js/web-vendor-entry.js?v=pharmacy-v3-4"></script>
     <script src="/assets/plugins/bootstrap/bootstrap.min.js"></script>
     <script src="/assets/plugins/chosen/chosen.jquery.min.js"></script>
     <script src="/assets/plugins/jquery-ui/jquery.form.min.js"></script>
@@ -1005,7 +1125,7 @@
     <script src="/assets/plugins/dataTables/buttons.html5.min.js"></script>
     <script src="/assets/plugins/dataTables/pdfmake.min.js"></script>
     <script src="/assets/plugins/dataTables/vfs_fonts.js"></script>
-    <script src="/assets/dist/js/web-entry.js"></script>
+    <script src="/assets/dist/js/web-entry.js?v=pharmacy-v3-4"></script>
 </body>
 
 </html>

@@ -2,9 +2,20 @@ const fs = require("fs");
 const { parse } = require("csv-parse");
 
 const requiredColumns = ["SUPPLIER", "BILL NO.", "ITEM NAME", "BATCH", "QTY", "SRATE"];
+const headerAliases = new Map([
+    ["SUPPLIER NAME", "SUPPLIER"], ["VENDOR", "SUPPLIER"], ["VENDOR NAME", "SUPPLIER"],
+    ["INVOICE NO", "BILL NO."], ["INVOICE NUMBER", "BILL NO."], ["INVOICE #", "BILL NO."], ["BILL NO", "BILL NO."], ["BILL NUMBER", "BILL NO."],
+    ["PRODUCT NAME", "ITEM NAME"], ["MEDICINE NAME", "ITEM NAME"], ["ITEM", "ITEM NAME"],
+    ["BATCH NO", "BATCH"], ["BATCH NUMBER", "BATCH"], ["LOT NO", "BATCH"],
+    ["QUANTITY", "QTY"], ["SALE RATE", "SRATE"], ["SALE PRICE", "SRATE"], ["SELLING RATE", "SRATE"], ["RETAIL RATE", "SRATE"],
+    ["PURCHASE RATE", "FTRATE"], ["EXPIRY DATE", "EXPIRY"], ["EXPIRATION DATE", "EXPIRY"],
+    ["EXP DATE", "EXPIRY"], ["FREE QTY", "F.QTY"], ["FREE QUANTITY", "F.QTY"],
+    ["BAR CODE", "BARCODE"], ["PRODUCT CODE", "CODE"], ["COMPANY NAME", "COMPANY"],
+]);
 
 function normalizeHeader(header) {
-    return String(header || "").replace(/^\uFEFF/, "").trim().toUpperCase();
+    const normalized = String(header || "").replace(/^\uFEFF/, "").trim().replace(/\s+/g, " ").toUpperCase();
+    return headerAliases.get(normalized) || normalized;
 }
 
 function parseNumber(value, field, errors, { required = false, allowNegative = false } = {}) {
@@ -57,7 +68,16 @@ function parseInvoiceDate(value) {
 
 function parseExpiry(row) {
     const expiry = String(row.EXPIRY || "").trim();
-    let match = expiry.match(/^(\d{1,2})\s*[/-]\s*(\d{2,4})$/);
+    let match = expiry.match(/^([A-Za-z]{3,9})[\s/-]+(\d{2,4})$/);
+    if (match) {
+        const monthDate = new Date(`${match[1]} 1, 2000 UTC`);
+        const year = expandYear(match[2]);
+        if (Number.isNaN(monthDate.getTime())) return null;
+        return new Date(Date.UTC(year, monthDate.getUTCMonth() + 1, 0)).toISOString().slice(0, 10);
+    }
+    const fullDate = parseInvoiceDate(expiry);
+    if (fullDate) return fullDate;
+    match = expiry.match(/^(\d{1,2})\s*[/-]\s*(\d{2,4})$/);
     if (match) {
         const year = expandYear(match[2]);
         const month = Number(match[1]);

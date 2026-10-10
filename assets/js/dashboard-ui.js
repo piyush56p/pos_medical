@@ -4,6 +4,16 @@ let salesChart = null;
 let paymentChart = null;
 let requestSequence = 0;
 let latestDashboard = null;
+let dashboardRequest = null;
+
+function showDashboard() {
+  $("#pos_view,#transactions_view,#inventory_view").hide();
+  $("#dashboard_view").show();
+  $("#transactions,#pointofsale").show();
+  $(".dashboard-sidebar .inventory-sidebar-link").removeClass("is-active").removeAttr("aria-current");
+  $("#dashboardHomeNav").addClass("is-active").attr("aria-current", "page");
+  loadDashboard();
+}
 
 function dashboardMoney(value) {
   return inr.format(Number(value) || 0);
@@ -15,21 +25,47 @@ function displayDashboardError(message) {
 
 function renderSalesChart(trend) {
   const canvas = document.getElementById("dashboardSalesChart");
-  const labels = trend.map((point) => point.date.slice(5));
-  const values = trend.map((point) => point.sales);
-  $("#dashboardEmptySales").toggle(!values.some((value) => value > 0));
-  if (salesChart) salesChart.destroy();
+  const labels = trend.map((point) => point.date);
+  const values = trend.map((point) => Number(point.sales) || 0);
+  const hasSales = values.some((value) => value > 0);
+  $("#dashboardEmptySales").toggle(!hasSales);
+  $(".dashboard-sales-chart-wrap").toggle(hasSales);
+  if (!hasSales) {
+    if (salesChart) salesChart.destroy();
+    salesChart = null;
+    return;
+  }
+  if (salesChart) {
+    salesChart.data.labels = labels;
+    salesChart.data.datasets[0].data = values;
+    salesChart.update("none");
+    return;
+  }
   salesChart = new Chart(canvas, {
-    type: "bar",
+    type: "line",
     data: {
       labels,
-      datasets: [{ label: "Sales revenue", data: values, backgroundColor: "#17685e", borderRadius: 3 }],
+      datasets: [{
+        label: "Sales revenue",
+        data: values,
+        borderColor: "#087b70",
+        backgroundColor: "rgba(8, 123, 112, .11)",
+        borderWidth: 2.5,
+        fill: true,
+        tension: .32,
+        pointRadius: values.length > 45 ? 0 : 3,
+        pointHoverRadius: 5,
+      }],
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      plugins: { legend: { display: false }, tooltip: { callbacks: { label: (context) => dashboardMoney(context.raw) } } },
-      scales: { y: { beginAtZero: true, ticks: { callback: (value) => dashboardMoney(value) } } },
+      animation: false,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { title: (items) => items.length ? items[0].label : "", label: (context) => dashboardMoney(context.raw) } } },
+      scales: {
+        x: { grid: { display: false }, ticks: { autoSkip: true, maxTicksLimit: 10, color: "#718582" } },
+        y: { beginAtZero: true, grid: { color: "rgba(24, 60, 59, .07)" }, ticks: { maxTicksLimit: 5, callback: (value) => dashboardMoney(value), color: "#718582" } },
+      },
     },
   });
 }
@@ -37,17 +73,30 @@ function renderSalesChart(trend) {
 function renderPaymentChart(methods) {
   const canvas = document.getElementById("dashboardPaymentsChart");
   const values = methods.map((entry) => entry.amount);
-  $("#dashboardEmptyPayments").toggle(!values.some((value) => value > 0));
-  if (paymentChart) paymentChart.destroy();
+  const hasPayments = values.some((value) => value > 0);
+  $("#dashboardEmptyPayments").toggle(!hasPayments);
+  $(".dashboard-payment-chart-wrap").toggle(hasPayments);
+  if (!hasPayments) {
+    if (paymentChart) paymentChart.destroy();
+    paymentChart = null;
+    return;
+  }
+  const chartData = {
+    labels: methods.map((entry) => entry.method.toUpperCase()),
+    datasets: [{ data: values, backgroundColor: ["#17685e", "#ed7738", "#c2d63c", "#77868b"] }],
+  };
+  if (paymentChart) {
+    paymentChart.data = chartData;
+    paymentChart.update("none");
+    return;
+  }
   paymentChart = new Chart(canvas, {
     type: "doughnut",
-    data: {
-      labels: methods.map((entry) => entry.method.toUpperCase()),
-      datasets: [{ data: values, backgroundColor: ["#17685e", "#ed7738", "#c2d63c", "#77868b"] }],
-    },
+    data: chartData,
     options: {
       responsive: true,
       maintainAspectRatio: false,
+      animation: false,
       plugins: { legend: { position: "bottom" }, tooltip: { callbacks: { label: (context) => `${context.label}: ${dashboardMoney(context.raw)}` } } },
     },
   });
@@ -137,6 +186,8 @@ function renderDashboard(data, sequence) {
 
 async function loadDashboard() {
   const sequence = ++requestSequence;
+  if (dashboardRequest) dashboardRequest.abort();
+  dashboardRequest = new AbortController();
   const period = $("#dashboardPeriod").val() || "30d";
   const params = new URLSearchParams({ period });
   if (period === "custom") {
@@ -145,12 +196,15 @@ async function loadDashboard() {
   }
   $("#dashboardRangeLabel").text("Loading pharmacy activity…");
   try {
-    const response = await fetch(`/api/dashboard/summary?${params}`, { credentials: "same-origin" });
+    const response = await fetch(`/api/dashboard/summary?${params}`, {
+      credentials: "same-origin",
+      signal: dashboardRequest.signal,
+    });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "Dashboard request failed.");
     renderDashboard(data, sequence);
   } catch (error) {
-    if (sequence === requestSequence) displayDashboardError(error.message || "Unable to load dashboard.");
+    if (sequence === requestSequence && error.name !== "AbortError") displayDashboardError(error.message || "Unable to load dashboard.");
   }
 }
 
@@ -161,8 +215,11 @@ $(function () {
     if (!custom) loadDashboard();
   });
   $("#dashboardApplyRange").on("click", loadDashboard);
+  $("#dashboardHomeNav").on("click", showDashboard);
+  $("#dashboardProductsNav").on("click", () => $("#productModal").trigger("click"));
+  $("#dashboardCategoriesNav").on("click", () => $("#categoryModal").trigger("click"));
   $("#transactions").on("click", function () {
-    $("#dashboard_view").hide();
+    $("#dashboard_view,#inventory_view").hide();
     $("#transactions_view").show();
     $("#pos_view").hide();
     $("#pointofsale,#overview").show();
@@ -174,10 +231,7 @@ $(function () {
     $("#transactions,#overview").show();
   });
   $("#overview").on("click", function () {
-    $("#pos_view,#transactions_view").hide();
-    $("#dashboard_view").show();
-    $("#transactions,#pointofsale").show();
-    loadDashboard();
+    showDashboard();
   });
   $("#dashboardInventoryButtons").on("click", "button[data-inventory-list]", function () {
     if (!latestDashboard) return;
@@ -195,10 +249,12 @@ $(function () {
     $("#dashboardInventoryDetails").show();
   });
   if (localStorage.getItem("auth")) {
-    $("#dashboard_view").show();
-    $("#pos_view,#transactions_view").hide();
+    // The inventory workspace is the primary landing page. Keep the dashboard
+    // available through Overview so returning users see the redesigned screen
+    // immediately after signing in.
+    $("#inventory_view").show();
+    $("#dashboard_view,#pos_view,#transactions_view").hide();
     $("#overview,#transactions,#pointofsale").show();
-    loadDashboard();
   }
 });
 

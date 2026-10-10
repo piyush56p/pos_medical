@@ -9,18 +9,24 @@ $(document).ready(function () {
     }
   });
 
+  function escapeRegExp(value) {
+    return String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  }
+
   function searchProducts() {
-    var matcher = new RegExp($("#search").val(), "gi");
+    var matcher = new RegExp(escapeRegExp($("#search").val()), "i");
     $(".box")
       .show()
       .not(function () {
-        return matcher.test($(this).find(".name, .sku").text());
+        return matcher.test($(this).find(".name, .sku, .product-search-meta, .pos-product-location").text());
       })
       .hide();
   }
 
-  let $search = $("#search").on("input", function () {
-    searchProducts();
+  let searchTimer = null;
+  $("#search").on("input", function () {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(searchProducts, 120);
   });
 
   $("body").on("click", "#jq-keyboard button", function (e) {

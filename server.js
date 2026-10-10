@@ -125,6 +125,7 @@ app.use("/api/customers", require("./api/customers"));
 app.use("/api/categories", require("./api/categories"));
 app.use("/api/settings", require("./api/settings"));
 app.use("/api/imports", require("./api/imports"));
+app.use("/api/locations", require("./api/locations"));
 app.use("/api/dashboard", require("./api/dashboard"));
 app.use("/api/users", require("./api/users"));
 app.use("/api", require("./api/transactions"));

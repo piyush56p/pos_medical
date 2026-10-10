@@ -101,6 +101,7 @@
     ]
   },
   "devDependencies": {
+    "@playwright/test": "^1.64.0",
     "browser-sync": "^3.0.3",
     "esbuild": "^0.28.2",
     "gulp": "^5.0.0",

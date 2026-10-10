@@ -138,6 +138,7 @@ class PostgresStore {
                     params,
                 );
                 const updated = rows.slice(0, options && options.multi ? rows.length : 1);
+                const saved = [];
                 for (const row of updated) {
                     const document = update && update.$set
                         ? { ...row.document, ...update.$set }
@@ -150,9 +151,10 @@ class PostgresStore {
                          WHERE collection = $1 AND id = $2`,
                         [this.collection, row.id, JSON.stringify(document)],
                     );
+                    saved.push(document);
                 }
                 await client.query("COMMIT");
-                return [updated.length, updated.map((row) => row.document)];
+                return [updated.length, saved];
             } catch (error) {
                 await client.query("ROLLBACK");
                 throw error;
@@ -160,11 +162,14 @@ class PostgresStore {
                 client.release();
             }
         });
-        return execute(promise, (error, result) => {
-            if (typeof callback === "function") {
-                callback(error, ...(result || []));
-            }
-        });
+        if (typeof callback === "function") {
+            promise.then(
+                (result) => callback(null, ...(result || [])),
+                (error) => callback(error),
+            );
+            return undefined;
+        }
+        return promise;
     }
 
     remove(filter, options, callback) {

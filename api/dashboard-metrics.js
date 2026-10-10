@@ -40,7 +40,7 @@ function isFinalized(transaction) {
     return Number(transaction.status) === 1 || ["paid", "credit"].includes(transaction.billStatus);
 }
 
-function calculateDashboard({ transactions = [], payments = [], products = [], batches = [], imports = [], range, now = new Date(), nearExpiryDays = 30 }) {
+function calculateDashboard({ transactions = [], recentTransactions = null, allTimeCreditOverride = null, payments = [], products = [], batches = [], imports = [], range, now = new Date(), nearExpiryDays = 30 }) {
     const { from, to, today } = range || resolveDateRange({ now });
     const paymentMap = new Map();
     const collectionsByDate = new Map();
@@ -170,7 +170,7 @@ function calculateDashboard({ transactions = [], payments = [], products = [], b
             todayBills,
             todayCollected: collectedToday,
             averageBill: billCount ? salesRevenue / billCount : 0,
-            creditOutstanding: allTimeCredit,
+            creditOutstanding: allTimeCreditOverride === null ? allTimeCredit : Number(allTimeCreditOverride) || 0,
             todayCreditOutstanding: creditOutstanding,
             last7Days: weekSales,
             thisMonth: monthSales,
@@ -201,7 +201,7 @@ function calculateDashboard({ transactions = [], payments = [], products = [], b
             outstandingByCustomer: [...creditByCustomer.values()].sort((a, b) => b.outstanding - a.outstanding).slice(0, 10),
         },
         recent: {
-            transactions: [...transactions].sort((a, b) => String(b.date || "").localeCompare(String(a.date || ""))).slice(0, 10),
+            transactions: [...(recentTransactions || transactions)].sort((a, b) => String(b.date || b.finalizedAt || "").localeCompare(String(a.date || a.finalizedAt || ""))).slice(0, 10),
             payments: [...payments].sort((a, b) => String(b.received_at || "").localeCompare(String(a.received_at || ""))).slice(0, 10),
             imports: imports.slice(0, 10),
         },

@@ -264,7 +264,7 @@ if (auth == undefined) {
 
         allProducts = [...data];
 
-        loadProductList();
+        $(document).trigger("pharmaspot:products-loaded", [allProducts]);
 
         let delay = 0;
         let expiredCount = 0;
@@ -307,13 +307,22 @@ if (auth == undefined) {
           let item_stockStatus = getStockStatus(item.quantity,item.minStock);
           const categoryClass = item.category && /^[a-zA-Z0-9_-]+$/.test(String(item.category)) ? item.category : "";
           const batchOptions = (item.batches || []).map((batch) =>
-            `<option value="${_.escape(batch.id)}">${_.escape(batch.batch_number)} · exp ${_.escape(String(batch.expiry_date || "not set").slice(0, 10))} · ${Number(batch.quantity)} left · ₹${Number(batch.sale_rate).toFixed(2)}</option>`,
+            `<option value="${_.escape(batch.id)}">${_.escape(batch.batch_number)} Â· exp ${_.escape(String(batch.expiry_date || "not set").slice(0, 10))} Â· ${Number(batch.quantity)} left Â· â‚¹${Number(batch.sale_rate).toFixed(2)}</option>`,
           ).join("");
           const batchPicker = (item.batches || []).length > 1
-            ? `<select class="form-control product-batch-select" id="batch-${item._id}" aria-label="Choose batch for ${_.escape(item.name)}" onclick="event.stopPropagation()">${batchOptions}</select>`
+            ? `<select class="form-control product-batch-select" id="batch-${item._id}" aria-label="Choose batch for ${_.escape(item.name)}">${batchOptions}</select>`
             : "";
           const displayName = _.escape(item.name || "");
           const displaySku = _.escape(item.barcodeValue || item.supplierCode || item.barcode || item._id);
+          const productSearchMeta = _.escape([
+            item.manufacturer, item.genericName, item.packSize,
+            ...(item.batches || []).map((batch) => batch.batch_number),
+            ...(item.locations || []).map((location) => location.locationLabel),
+          ].filter(Boolean).join(" "));
+          const productLocationSummary = [...new Set((item.locations || []).map((location) => location.locationLabel).filter(Boolean))];
+          const productLocationLabel = productLocationSummary.length
+            ? _.escape(productLocationSummary.slice(0, 2).join(" · "))
+            : "Location not assigned";
           if(item.img==="")
           {
             item_img = default_item_img;
@@ -324,10 +333,8 @@ if (auth == undefined) {
           }
           
 
-          let item_info = `<div class="col-lg-2 box ${categoryClass}"
-                                onclick="$(this).addToCart(${item._id}, ${
-                                  item.quantity
-                                }, ${item.stock})">
+          let item_info = `<div class="col-lg-2 box ${categoryClass} product-tile" role="button" tabindex="0"
+                                data-product-id="${item._id}" data-product-quantity="${Number(item.quantity) || 0}" data-product-stock="${Number(item.stock) || 0}">
                             <div class="widget-panel widget-style-2 " title="${displayName}">
                             <div id="image"><img src="${item_img}" id="product_img" alt=""></div>                    
                                         <div class="text-muted m-t-5 text-center">
@@ -336,6 +343,8 @@ if (auth == undefined) {
                                         }">${displayName}</span></div>
                                         ${batchPicker}
                                         <span class="sku">${displaySku}</span>
+                                        <span class="product-search-meta">${productSearchMeta}</span>
+                                        <span class="pos-product-location">${productLocationLabel}</span>
                                         <span class="${item_stockStatus<1?'text-danger':''}"><span class="stock">STOCK </span><span class="count">${
                                           item.stock == 1
                                             ? item.quantity
@@ -349,12 +358,15 @@ if (auth == undefined) {
                         </div>`;
           $("#parent").append(item_info);
         });
+      }).fail(function () {
+        $("#inventoryPageRows").html('<tr><td colspan="7" class="inventory-empty">Unable to load products from the database. Refresh and try again.</td></tr>');
       });
     }
 
     function loadCategories() {
       $.get(api + "categories/all", function (data) {
         allCategories = data;
+        $(document).trigger("pharmaspot:categories-loaded", [allCategories]);
         loadCategoryList();
         $("#category,#categories").html(`<option value="0">Select</option>`);
         allCategories.forEach((category) => {
@@ -384,6 +396,8 @@ if (auth == undefined) {
         });
       });
     }
+
+    $(document).on("pharmaspot:refresh-products", loadProducts);
 
     $.fn.addToCart = function (id, count, stock) {
       $.get(api + "inventory/product/" + id, function (product) {
@@ -578,13 +592,12 @@ if (auth == undefined) {
         $("#cartTable .card-body").append(
           $("<div>", { class: "row m-t-10" }).append(
             $("<div>", { class: "col-md-1", text: index + 1 }),
-            $("<div>", { class: "col-md-3", text: data.product_name + (data.batch_number ? ` · ${data.batch_number}` : "") }),
+            $("<div>", { class: "col-md-3", text: data.product_name + (data.batch_number ? ` Â· ${data.batch_number}` : "") }),
             $("<div>", { class: "col-md-3" }).append(
               $("<div>", { class: "input-group" }).append(
                 $("<span>", { class: "input-group-btn" }).append(
                   $("<button>", {
-                    class: "btn btn-light",
-                    onclick: "$(this).qtDecrement(" + index + ")",
+                    type: "button", class: "btn btn-light cart-quantity-decrement", "data-index": index, "aria-label": "Decrease quantity",
                   }).append($("<i>", { class: "fa fa-minus" })),
                 ),
                 $("<input>", {
@@ -593,12 +606,11 @@ if (auth == undefined) {
                   readonly: "",
                   value: data.quantity,
                   min: "1",
-                  onInput: "$(this).qtInput(" + index + ")",
+                  "data-index": index,
                 }),
                 $("<span>", { class: "input-group-btn" }).append(
                   $("<button>", {
-                    class: "btn btn-light",
-                    onclick: "$(this).qtIncrement(" + index + ")",
+                    type: "button", class: "btn btn-light cart-quantity-increment", "data-index": index, "aria-label": "Increase quantity",
                   }).append($("<i>", { class: "fa fa-plus" })),
                 ),
               ),
@@ -611,8 +623,7 @@ if (auth == undefined) {
             }),
             $("<div>", { class: "col-md-1" }).append(
               $("<button>", {
-                class: "btn btn-light btn-xs",
-                onclick: "$(this).deleteFromCart(" + index + ")",
+                type: "button", class: "btn btn-light btn-xs cart-delete-item", "data-index": index, "aria-label": "Remove item",
               }).append($("<i>", { class: "fa fa-times" })),
             ),
           ),
@@ -721,6 +732,50 @@ if (auth == undefined) {
         }
       } else {
         notiflix.Report.warning("Oops!", "There is nothing to pay!", "Ok");
+      }
+    });
+
+    $("#viewCustomerOrders").on("click", function () {
+      $(this).getCustomerOrders();
+    });
+    $(document).on("click", "[data-transaction-action]", function () {
+      const index = Number($(this).attr("data-transaction-index"));
+      if ($(this).attr("data-transaction-action") === "view") $(this).viewTransaction(index);
+      if ($(this).attr("data-transaction-action") === "settle") $(this).settleCredit(index);
+    });
+    $(document).on("click", "[data-order-action]", function () {
+      const index = Number($(this).attr("data-order-index"));
+      const type = Number($(this).attr("data-order-type"));
+      const action = $(this).attr("data-order-action");
+      if (action === "delete") $(this).deleteOrder(index, type);
+      if (action === "open") $(this).orderDetails(index, type);
+      if (action === "pay") $(this).payOrder(index, type);
+    });
+    $(document).on("click", "[data-record-action]", function () {
+      const action = $(this).attr("data-record-action");
+      const index = Number.parseInt($(this).attr("data-record-index"), 10);
+      const id = Number.parseInt($(this).attr("data-record-id"), 10);
+      if (action === "edit-user") $(this).editUser(index);
+      if (action === "delete-user") $(this).deleteUser(id);
+      if (action === "edit-product") $(this).editProduct(index);
+      if (action === "delete-product") $(this).deleteProduct(id);
+      if (action === "edit-category") $(this).editCategory(index);
+      if (action === "delete-category") $(this).deleteCategory(id);
+    });
+    $("#inputDiscount").on("input", function () { $(this).calculateCart(); });
+    $(document).on("click", ".pos-cart-clear", function () { $(this).cancelOrder(); });
+    $(document).on("click", ".complete-due-order", function () { $(this).submitDueOrder(3); });
+    $(document).on("click", ".hold-order-submit", function () { $(this).submitDueOrder(0); });
+    $(document).on("click", ".print-transaction", function () { $(this).print(); });
+    $("#parent").on("click", ".product-tile", function (event) {
+      if ($(event.target).closest(".product-batch-select").length) return;
+      $(this).addToCart($(this).data("product-id"), $(this).data("product-quantity"), $(this).data("product-stock"));
+    });
+    $("#parent").on("click", ".product-batch-select", function (event) { event.stopPropagation(); });
+    $("#parent").on("keydown", ".product-tile", function (event) {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        $(this).trigger("click");
       }
     });
 
@@ -1059,20 +1114,18 @@ if (auth == undefined) {
                 ),
                 $("<button>", {
                   class: "btn btn-danger del",
-                  onclick:
-                    "$(this).deleteOrder(" + index + "," + orderType + ")",
+                  type: "button", "data-order-action": "delete", "data-order-index": index, "data-order-type": orderType,
                 }).append($("<i>", { class: "fa fa-trash" })),
 
                 $("<button>", {
                   class: "btn btn-default",
-                  onclick:
-                    "$(this).orderDetails(" + index + "," + orderType + ")",
+                  type: "button", "data-order-action": "open", "data-order-index": index, "data-order-type": orderType,
                 }).append($("<span>", { class: "fa fa-shopping-basket" })),
 
                 $("<button>", {
                   class: "btn btn-success",
                   title: "Mark as paid",
-                  onclick: "$(this).payOrder(" + index + "," + orderType + ")",
+                  type: "button", "data-order-action": "pay", "data-order-index": index, "data-order-type": orderType,
                 }).append($("<span>", { class: "fa fa-money" })),
               ),
             ),
@@ -1400,7 +1453,7 @@ if (auth == undefined) {
       $("#creditPaymentAmount").attr("max", balance.toFixed(2)).val(balance.toFixed(2));
       $("#creditPaymentError").hide().text("");
       $("#creditPaymentForm").data("idempotencyKey", window.crypto.randomUUID());
-      const history = $("#creditPaymentHistory").text("Loading payment history…");
+      const history = $("#creditPaymentHistory").text("Loading payment historyâ€¦");
       try {
         const response = await fetch(`${api}${encodeURIComponent(transaction._id)}/payments`, { credentials: "same-origin" });
         const payments = await response.json();
@@ -1408,7 +1461,7 @@ if (auth == undefined) {
         if (!response.ok) throw new Error(payments.error || "Unable to load payment history.");
         if (!payments.length) history.text("No payment events recorded yet.");
         payments.forEach((payment) => {
-          history.append($("<div>", { text: `${new Date(payment.received_at).toLocaleString()} · ${payment.method.toUpperCase()} · ${validator.unescape(settings.symbol)}${moneyFormat(payment.amount)}` }));
+          history.append($("<div>", { text: `${new Date(payment.received_at).toLocaleString()} Â· ${payment.method.toUpperCase()} Â· ${validator.unescape(settings.symbol)}${moneyFormat(payment.amount)}` }));
         });
       } catch (error) {
         history.text("Payment history could not be loaded.");
@@ -1452,6 +1505,7 @@ if (auth == undefined) {
 
     $("#pointofsale").on("click", function () {
       $("#pos_view").show();
+      $("#inventory_view,#dashboard_view").hide();
       $("#transactions").show();
       $("#transactions_view").hide();
       $(this).hide();
@@ -1474,48 +1528,28 @@ if (auth == undefined) {
       $("#current_img").text("");
     });
 
-    $("#saveProduct").submit(function (e) {
+    $("#saveProduct").submit(async function (e) {
       e.preventDefault();
-
-      $(this).attr("action", api + "inventory/product");
-      $(this).attr("method", "POST");
-
-      $(this).ajaxSubmit({
-        contentType: "application/json",
-        success: function (response) {
-          $("#saveProduct").get(0).reset();
-          $("#current_img").text("");
-
-          loadProducts();
-          diagOptions = {
-            title: "Product Saved",
-            text: "Select an option below to continue.",
-            okButtonText: "Add another",
-            cancelButtonText: "Close",
-          };
-
-          notiflix.Confirm.show(
-            diagOptions.title,
-            diagOptions.text,
-            diagOptions.okButtonText,
-            diagOptions.cancelButtonText,
-            ()=>{},
-            () => {
-              $("#newProduct").modal("hide");
-            },
-          );
-        },
-        //error for product
-       error: function (jqXHR,textStatus, errorThrown) {
-      console.error(jqXHR.responseJSON.message);
-      notiflix.Report.failure(
-        jqXHR.responseJSON.error,
-        jqXHR.responseJSON.message,
-        "Ok",
-      );
+      const submit = $("#submitProduct").prop("disabled", true);
+      try {
+        const response = await fetch(`${api}inventory/product`, {
+          method: "POST",
+          credentials: "same-origin",
+          body: new FormData(this),
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(result.message || result.error || "Product could not be saved.");
+        this.reset();
+        $("#current_img").empty();
+        $("#newProduct").modal("hide");
+        loadProducts();
+        $(document).trigger("pharmaspot:inventory-saved", ["Product saved to the database."]);
+        notiflix.Notify.success("Product saved to inventory.");
+      } catch (error) {
+        notiflix.Report.failure("Product was not saved", error.message || "Check the product details and try again.", "OK");
+      } finally {
+        submit.prop("disabled", false);
       }
-
-      });
     });
 
     $("#saveCategory").submit(function (e) {
@@ -1567,7 +1601,14 @@ if (auth == undefined) {
         .prop("selected", true);
 
       $("#productName").val(allProducts[index].name);
+      $("#manufacturer").val(allProducts[index].manufacturer || "");
+      $("#genericName").val(allProducts[index].genericName || "");
+      $("#packSize").val(allProducts[index].packSize || "");
       $("#product_price").val(allProducts[index].price);
+      $("#purchaseRate").val(allProducts[index].purchaseRate ?? "");
+      $("#mrp").val(allProducts[index].mrp ?? "");
+      $("#gstRate").val(allProducts[index].gstRate ?? "");
+      $("#hsnCode").val(allProducts[index].hsnCode || "");
       $("#quantity").val(allProducts[index].quantity);
       $("#supplier").val(allProducts[index].supplier || "");
       $("#barcode").val(allProducts[index].barcode || allProducts[index]._id);
@@ -1704,10 +1745,6 @@ if (auth == undefined) {
       );
     };
 
-    $("#productModal").on("click", function () {
-      loadProductList();
-    });
-
     $("#usersModal").on("click", function () {
       loadUserList();
     });
@@ -1755,9 +1792,9 @@ if (auth == undefined) {
             <td>${
               user._id == 1
                 ? '<span class="btn-group"><button class="btn btn-dark"><i class="fa fa-edit"></i></button><button class="btn btn-dark"><i class="fa fa-trash"></i></button></span>'
-                : '<span class="btn-group"><button onClick="$(this).editUser(' +
+                : '<span class="btn-group"><button data-record-action="edit-user" data-record-index="' +
                   index +
-                  ')" class="btn btn-warning"><i class="fa fa-edit"></i></button><button onClick="$(this).deleteUser(' +
+                  ')" class="btn btn-warning"><i class="fa fa-edit"></i></button><button data-record-action="delete-user" data-record-id="' +
                   user._id +
                   ')" class="btn btn-danger"><i class="fa fa-trash"></i></button></span>'
             }</td></tr>`;
@@ -1853,7 +1890,7 @@ if (auth == undefined) {
             <td>${product.expirationDate}</td>
             <td>${category.length > 0 ? category[0].name : ""}</td>
             <td>${product.supplier || ""}</td>
-            <td class="nobr"><span class="btn-group"><button onClick="$(this).editProduct(${index})" class="btn btn-warning btn-sm"><i class="fa fa-edit"></i></button><button onClick="$(this).deleteProduct(${
+            <td class="nobr"><span class="btn-group"><button data-record-action="edit-product" data-record-index="${index}" class="btn btn-warning btn-sm"><i class="fa fa-edit"></i></button><button data-record-action="delete-product" data-record-id="${
               product._id
             })" class="btn btn-danger btn-sm"><i class="fa fa-trash"></i></button></span></td></tr>`;
 
@@ -1902,7 +1939,7 @@ if (auth == undefined) {
         category_list += `<tr>
      
             <td>${category.name}</td>
-            <td><span class="btn-group"><button onClick="$(this).editCategory(${index})" class="btn btn-warning"><i class="fa fa-edit"></i></button><button onClick="$(this).deleteCategory(${category._id})" class="btn btn-danger"><i class="fa fa-trash"></i></button></span></td></tr>`;
+            <td><span class="btn-group"><button data-record-action="edit-category" data-record-index="${index}" class="btn btn-warning"><i class="fa fa-edit"></i></button><button data-record-action="delete-category" data-record-id="${category._id}" class="btn btn-danger"><i class="fa fa-trash"></i></button></span></td></tr>`;
       });
 
       if (counter == allCategories.length) {
@@ -2157,10 +2194,11 @@ function loadTransactions() {
   let query = `by-date?start=${start_date}&end=${end_date}&user=${by_user}&status=${by_status}&till=${by_till}`;
 
   $.get(api + query, function (transactions) {
-    if (transactions.length > 0) {
-      $("#transaction_list").empty();
+    if ($.fn.DataTable.isDataTable("#transactionList")) {
       $("#transactionList").DataTable().destroy();
-
+    }
+    $("#transaction_list").empty();
+    if (transactions.length > 0) {
       allTransactions = [...transactions];
 
       transactions.forEach((trans, index) => {
@@ -2209,7 +2247,7 @@ function loadTransactions() {
                                 <td>${trans.till}</td>
                                 <td>${trans.user}</td>
                                 <td>${_.escape(trans.billStatus || (Number(trans.status) === 1 ? "paid" : "open"))}</td>
-                                <td><button onClick="$(this).viewTransaction(${index})" class="btn btn-info" title="View bill"><i class="fa fa-search-plus"></i></button>${trans.billStatus === "credit" ? ` <button onClick="$(this).settleCredit(${index})" class="btn btn-success btn-xs" title="Record customer payment">Settle</button>` : ""}</td>
+                                <td><button type="button" data-transaction-action="view" data-transaction-index="${index}" class="btn btn-info" title="View bill"><i class="fa fa-search-plus"></i></button>${trans.billStatus === "credit" ? ` <button type="button" data-transaction-action="settle" data-transaction-index="${index}" class="btn btn-success btn-xs" title="Record customer payment">Settle</button>` : ""}</td>
                               </tr>
                     `;
 
@@ -2267,11 +2305,12 @@ function loadTransactions() {
         }
       });
     } else {
-      notiflix.Report.warning(
-        "No data!",
-        "No transactions available within the selected criteria",
-        "Ok",
-      );
+      $("#transaction_list").html("<tr><td colspan=\"10\" class=\"text-center text-muted\">No transactions for this date range. Change the dates or complete a sale to see bills here.</td></tr>");
+      $("#total_sales #counter").text(validator.unescape(settings.symbol) + "0.00");
+      $("#total_transactions #counter").text("0");
+      sold = [];
+      allTransactions = [];
+      loadSoldProducts();
     }
   });
 }
