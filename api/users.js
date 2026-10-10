@@ -4,7 +4,6 @@ const bodyParser = require("body-parser");
 const { PostgresStore } = require("./postgres-store");
 const bcrypt = require("bcrypt");
 const saltRounds = 10;
-const validator = require("validator");
 
 app.use(bodyParser.json());
 
@@ -81,15 +80,21 @@ app.get("/logout/:userId", function (req, res) {
  * @returns {void}
  */
 app.post("/login", function (req, res) {
+    const username = typeof req.body.username === "string" ? req.body.username.trim() : "";
+    const password = typeof req.body.password === "string" ? req.body.password : "";
+    if (!username || !password) {
+        return res.send({ auth: false });
+    }
+
     usersDB.findOne(
         {
-            username: validator.escape(req.body.username),
+            username,
         },
         function (err, docs) {
             if (docs) {
                 //verify password
                 bcrypt
-                    .compare(req.body.password, docs.password)
+                    .compare(password, docs.password)
                     .then((result) => {
                         if (result) {
                             req.session.regenerate((sessionError) => {

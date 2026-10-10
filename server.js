@@ -59,22 +59,20 @@ function requireOwner(req, res, next) {
 
 async function ensureOwnerAccount() {
     const existing = await pool.query(
-        "SELECT 1 FROM app_records WHERE collection = 'users' LIMIT 1",
+        "SELECT id, document FROM app_records WHERE collection = 'users' ORDER BY sequence LIMIT 1",
     );
-    if (existing.rowCount > 0) {
-        return;
-    }
-
     const username = process.env.OWNER_USERNAME && process.env.OWNER_USERNAME.trim();
     const password = process.env.OWNER_PASSWORD;
     if (!username || !password || password.length < 12) {
         throw new Error("Set OWNER_USERNAME and an OWNER_PASSWORD of at least 12 characters.");
     }
 
+    const existingOwner = existing.rows[0];
     const owner = {
-        _id: 1,
+        ...(existingOwner ? existingOwner.document : {}),
+        _id: existingOwner ? existingOwner.document._id : 1,
         username,
-        fullname: process.env.OWNER_NAME || "PharmaSpot Owner",
+        fullname: process.env.OWNER_NAME || (existingOwner && existingOwner.document.fullname) || "PharmaSpot Owner",
         password: await bcrypt.hash(password, 12),
         perm_products: 1,
         perm_categories: 1,
@@ -83,11 +81,18 @@ async function ensureOwnerAccount() {
         perm_settings: 1,
         status: "",
     };
-    await pool.query(
-        `INSERT INTO app_records (collection, id, document)
-         VALUES ('users', '1', $1::jsonb)`,
-        [JSON.stringify(owner)],
-    );
+    if (existingOwner) {
+        await pool.query(
+            "UPDATE app_records SET document = $2::jsonb WHERE collection = 'users' AND id = $1",
+            [existingOwner.id, JSON.stringify(owner)],
+        );
+    } else {
+        await pool.query(
+            `INSERT INTO app_records (collection, id, document)
+             VALUES ('users', '1', $1::jsonb)`,
+            [JSON.stringify(owner)],
+        );
+    }
 }
 
 app.get("/healthz", async (req, res) => {
